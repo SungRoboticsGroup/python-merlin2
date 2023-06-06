@@ -20,10 +20,10 @@ def enhanced_linear(he : npt.NDArray, h0, kpi, l0, limlft, limrt, incl_espr):
     rspr = np.zeros(he.shape)
     kspr = np.ndarray.copy(rspr)
 
-    lInd = he < limlft
-    rInd = he > limrt
-    mInd = np.invert(np.bitwise_or(lInd, rInd))
-    rspr[lInd] = np.multiply(
+    lInd = (he < limlft).astype(bool)
+    rInd = (he > limrt).astype(bool)
+    mInd = np.invert(np.bitwise_or(lInd, rInd)).astype(bool)
+    rspr[lInd] = (np.multiply(
                     kpi[lInd], 
                     np.real(limlft[lInd] - h0[lInd])) + (
                     np.divide(
@@ -38,7 +38,7 @@ def enhanced_linear(he : npt.NDArray, h0, kpi, l0, limlft, limrt, incl_espr):
                             ), 
                         partl[lInd] / 2
                     )
-                )
+                )).reshape((-1,), order="F")
     kspr[lInd] = np.multiply(
         kpi[lInd], 
         np.power(1 / np.cos(
@@ -49,7 +49,7 @@ def enhanced_linear(he : npt.NDArray, h0, kpi, l0, limlft, limrt, incl_espr):
             ), 2
         )
     )
-    rspr[rInd] = np.multiply(
+    rspr[rInd] = (np.multiply(
                     kpi[rInd], 
                     np.real(limrt[rInd] - h0[rInd])) + (
                     np.divide(
@@ -64,7 +64,7 @@ def enhanced_linear(he : npt.NDArray, h0, kpi, l0, limlft, limrt, incl_espr):
                             ), 
                         partr[rInd] / 2
                     )
-                )
+                )).reshape((-1,), order="F")
     kspr[rInd] = np.multiply(
         kpi[rInd], 
         np.power(1 / np.cos(
@@ -74,8 +74,8 @@ def enhanced_linear(he : npt.NDArray, h0, kpi, l0, limlft, limrt, incl_espr):
                 )
             ), 2
         )
-    )
-    rspr[mInd] = np.multiply(kpi[mInd], np.real(he[mInd] - h0[mInd]))
+    ).reshape((-1,), order="F")
+    rspr[mInd] = np.multiply(kpi[mInd], np.real(he[mInd] - h0[mInd])).reshape((-1,), order="F")
     kspr[mInd] = kpi[mInd]
     rspr = np.multiply(l0, rspr)
     kspr = np.multiply(l0, kspr)
