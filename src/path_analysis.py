@@ -2,42 +2,63 @@ from prepare_data import Truss, Angles, AnalyInputOpt
 import numpy as np
 import numpy.typing as npt
 from src.util.globalk_fast_ver import globalk_fast_ver
+import scipy.sparse as sp
 
-def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOpt):
+def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOpt, do_prints : bool):
     
     tol = 1e-6
     max_iter = 50
-    node = truss["node"]
+    node = truss.get("node")
+    if node is None:
+        raise ValueError()
 
-    u = truss["u_0"]
+    u = truss.get("u_0")
     if not isinstance(u, np.ndarray):
-        u = np.zeros((3 * np.size(node, 0), 1))
+        u = np.zeros((3 * np.size(node, 0), 1), dtype=np.longdouble)
+    else:
+        u = u.astype(np.longdouble)
+
+    stop = analy_input_opt.get("stop_criterion")
+    assert stop != None
+
+    fixed_dofs = truss.get("fixed_dofs")
+    assert type(fixed_dofs) == np.ndarray
     
-    if (analy_input_opt["load_type"] == "force"):
-        max_icr = analy_input_opt["max_incr"]
-        b_lambda = analy_input_opt["initial_load_factor"]
+    if (analy_input_opt.get("load_type") == "force"):
+        max_icr = analy_input_opt.get("max_incr")
+        assert type(max_icr) == int
+        b_lambda = analy_input_opt.get("initial_load_factor")
+        assert type(b_lambda) == float or type(b_lambda) == int
         u_his = np.zeros((3 * np.size(node, 0), max_icr))
-        free_dofs = np.setdiff1d(np.arange(3 * np.size(node, 0)), truss["fixed_dofs"])
+
+        free_dofs = np.setdiff1d(np.arange(3 * np.size(node, 0)), fixed_dofs)
         lmd = 0
         icrm = -1
         mul = np.block([u, u])
         f_his = np.zeros((max_icr, 1))
         dupp1 = sinal = dupc1 = numgsp = 0
-        if isinstance(analy_input_opt["load"] , np.ndarray):
-            F = analy_input_opt["load"]
-        while (icrm < max_icr - 1 and (not analy_input_opt["stop_criterion"](node, u, icrm))):
+        t = analy_input_opt.get("load")
+        F = None
+        if isinstance(t , np.ndarray):
+            F = t
+        while (icrm < max_icr - 1 and (not stop(node, u, icrm))):
                 icrm += 1
                 iter = -1
                 err = 1
-                print(f"icrm = {icrm}, lambda = {lmd:6.4f}")
-                if analy_input_opt.get("adaptive_load") != None:
-                    F = analy_input_opt["adaptive_load"](node, u, icrm)
+                if do_prints:
+                    print(f"icrm = {icrm}, lambda = {lmd:6.4f}")
+                ad = analy_input_opt.get("adaptive_load")
+                if ad != None:
+                    F = ad(node, u, icrm)
+                if F is None:
+                    raise ValueError()
                 while err > tol and iter < max_iter:
                     iter += 1
                     IF, K = globalk_fast_ver(u, node, truss, angles, True)
+                    assert type(K) == sp._csc.csc_matrix
                     R = lmd * F - IF
                     MRS = np.hstack((F, R))
-                    mul[free_dofs, :] = np.linalg.solve(K[np.ix_(free_dofs, free_dofs)].toarray(), MRS[free_dofs])
+                    mul[free_dofs, :] = np.linalg.solve(K.toarray()[np.ix_(free_dofs, free_dofs)], MRS[free_dofs])
                     d_up = mul[:, 0]
                     d_ur = mul[:, 1]
                     if iter == 0: d_ur *= 0
@@ -48,53 +69,69 @@ def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOp
                     u += d_ut.reshape((-1, 1))
                     err = np.linalg.norm(d_ut[free_dofs])
                     lmd += dlmd
-                    print(f"\titer = {iter}, err={err:6.4f}, dlambda = {dlmd:6.4f}")
+                    if do_prints:
+                        print(f"\titer = {iter}, err={err:6.4f}, dlambda = {dlmd:6.4f}")
                     if err > 1e8:
                         print("Divergence!")
                         break
                 if iter > 14:
                     b_lambda /= 2
-                    print("Reduce constraint radius...")
+                    if do_prints:
+                        print("Reduce constraint radius...")
                     icrm -= 1
                     u = u_his[:, [max(icrm, 0)]]
                     lmd = f_his[max(icrm, 0)][0]
                 elif iter < 2:
-                    print("Increase constraint radius...")
+                    if do_prints:
+                        print("Increase constraint radius...")
                     b_lambda *= 1.5
                     u_his[:, [icrm]] = u
                     f_his[icrm] = lmd
                 else:
                     u_his[:, [icrm]] = u
                     f_his[icrm] = lmd
-    elif analy_input_opt["load_type"] == "displacement":
-        u_his = np.zeros((3 * np.size(node, 0), analy_input_opt["disp_step"] * 2))
-        if analy_input_opt.get("load") is not None:
-            fdsp = analy_input_opt["load"] / analy_input_opt["disp_step"]
+    elif analy_input_opt.get("load_type") == "displacement":
+        disp_step = analy_input_opt.get("disp_step")
+        assert type(disp_step) == int
+        u_his = np.zeros((3 * np.size(node, 0), disp_step * 2))
+        ld = analy_input_opt.get("load")
+        adl = analy_input_opt.get("adaptive_load")
+        if ld is not None:
+            fdsp = ld / disp_step
+        elif adl is not None: 
+            fdsp = adl(node, u, 1) # Might need to be 0
         else: 
-            fdsp = analy_input_opt["adaptive_load"](node, u, 1) # Might need to be 0
+            raise ValueError()
         imp_dofs = np.nonzero(fdsp)
-        free_dofs = np.setdiff1d(np.setdiff1d(range(3*np.size(node, 0)), truss["fixed_dofs"]), imp_dofs)
+        free_dofs = np.setdiff1d(np.setdiff1d(range(3*np.size(node, 0)), fixed_dofs), imp_dofs)
         icrm = -1
         dspmvd = attmpts = 0
         mvstepsize = damping = 1
-        f_his = np.zeros((analy_input_opt["disp_step"], np.size(imp_dofs)))
-        while (dspmvd <= 1 and (not analy_input_opt["stop_criterion"](node, u, icrm)) and attmpts <= 20):
+        f_his = np.zeros((disp_step * 2, np.size(imp_dofs)))
+        while (dspmvd <= 1 and (not stop(node, u, icrm)) and attmpts <= 20):
             icrm += 1
+            # if icrm == np.size(u_his, 1):
+            #     u_his = np.hstack((u_his, np.zeros(u_his.shape)))
+            # if icrm == np.size(f_his, 0):
+            #     f_his = np.vstack((f_his, np.zeros(f_his.shape)))
             iter = -1
             err = 1
-            print(f"icrm = {icrm}, dspimps = {dspmvd:6.4f}")
-            if analy_input_opt.get("adaptive_load") is not None:
-                fdsp = analy_input_opt["adaptive_load"](node, u, icrm)
+            if do_prints:
+                print(f"icrm = {icrm}, dspimps = {dspmvd:6.4f}")
+            if adl is not None:
+                fdsp = adl(node, u, icrm)
             u += mvstepsize * fdsp
-            u[truss["fixed_dofs"]] = 0
-            while (err > tol and iter < max_iter):
+            u[fixed_dofs] = 0
+            while (err > tol and iter < max_iter - 1):
                 iter += 1
                 IF, k = globalk_fast_ver(u, node, truss, angles, True)
+                assert k is not None
                 du = np.zeros((3 * np.size(node, 0), 1))
-                du[free_dofs] = np.linalg.solve(k[free_dofs, free_dofs], -IF[free_dofs])
+                du[free_dofs] = np.linalg.solve(k.toarray()[np.ix_(free_dofs, free_dofs)], -IF[free_dofs])
                 err = np.linalg.norm(du[free_dofs])
                 u += damping * du
-                print(f"\titer = {iter}, err = {err:6.4f}")
+                if do_prints:
+                    print(f"\titer = {iter}, err = {err:6.4f}")
             
             if iter >= (((mvstepsize > 1) + 1) * max_iter / (damping + 1)):
                 # an aggressive step needs more iterations
@@ -102,22 +139,24 @@ def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOp
                 icrm -= 1
                 if attmpts <= 10:
                     mvstepsize *= 0.5
-                    print("Taking a more conservative step...")
+                    if do_prints:
+                        print("Taking a more conservative step...")
                 else:
                     mvstepsize = max(mvstepsize, 1) * 1.5
                     damping *= 0.75
-                    print("Taking a more aggressive step...")
+                    if do_prints:
+                        print("Taking a more aggressive step...")
                 u = u_his[:, [max(icrm, 1)]] # restore displacement
             else:
-                dspmvd += mvstepsize / analy_input_opt["disp_step"]
+                dspmvd += mvstepsize / disp_step
                 attmpts = 0
                 damping = 1
                 if mvstepsize < 1:
                     mvstepsize = min(mvstepsize * 1.1, 1)
                 else:
                     mvstepsize = max(mvstepsize * 0.9, 1)
-                u_his[:, icrm] = u
-                f_end = globalk_fast_ver(u, node, truss, angles, False)
+                u_his[:, [icrm]] = u
+                f_end, _ = globalk_fast_ver(u, node, truss, angles, False)
                 f_his[icrm, :] = -f_end[imp_dofs].T
     else:
         raise ValueError("Unknown load type!!!")

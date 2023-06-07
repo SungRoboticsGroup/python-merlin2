@@ -43,7 +43,7 @@ from src.util.dicts import *
 
 
 
-def prepare_data(node : npt.ArrayLike, panel : npt.ArrayLike, supp : npt.ArrayLike, load : npt.ArrayLike, analy_input_opt : AnalyInputOpt):
+def prepare_data(node : npt.NDArray, panel : npt.NDArray, supp : npt.NDArray, load : npt.NDArray, analy_input_opt : AnalyInputOpt):
     """
     Load must be a 2d array of ints"""
     
@@ -55,10 +55,10 @@ def prepare_data(node : npt.ArrayLike, panel : npt.ArrayLike, supp : npt.ArrayLi
     put_opt("max_incr", 100)
     put_opt("initial_load_factor", 0.01)
 
-    if(analy_input_opt["model_type"] not in ["N5B8", "N4B5"]):
-        raise ValueError(f"Model type {analy_input_opt['model_type']} is not allowed.")
+    if(analy_input_opt.get("model_type") not in ["N5B8", "N4B5"]):
+        raise ValueError(f"Model type {analy_input_opt.get('model_type')} is not allowed.")
     
-    bend, node, panelctr = _find_bend(panel, node, analy_input_opt["model_type"])
+    bend, node, panelctr = _find_bend(panel, node, analy_input_opt.get("model_type"))
     # find bending hinges
     fold, bdry, trigl = _findfdbd(panel, bend)
     # find folding hinges and boundaries, return final triangulation
@@ -83,7 +83,7 @@ def prepare_data(node : npt.ArrayLike, panel : npt.ArrayLike, supp : npt.ArrayLi
         pf_0[i] = fold_ke(node, fold[i].astype(int))
     
     zero_bend = get_opt("zero_bend", "as_is")
-    pb_0 = np.zeros((np.size(bend, 0), 1))
+    pb_0 = np.zeros((np.size(bend, 0), 1), dtype="float128")
 
     if type(zero_bend) != str:
         pb_0 += zero_bend
@@ -91,7 +91,7 @@ def prepare_data(node : npt.ArrayLike, panel : npt.ArrayLike, supp : npt.ArrayLi
         pb_0 += np.pi
     elif zero_bend == "as_is":
         for i in range(np.size(bend, 0)):
-            pb_0[i] = fold_ke(node, bend[i].astype("int32"))
+            pb_0[i] = fold_ke(node.astype("float128"), bend[i].astype("int32"))
 
     if load.shape[0] != 0:
             m = np.size(node, 0)
@@ -103,9 +103,13 @@ def prepare_data(node : npt.ArrayLike, panel : npt.ArrayLike, supp : npt.ArrayLi
             analy_input_opt["load"] = fd
 
     # find potential energy constants of bends and folds
-    kpb = get_opt("K_b", 0.1)
-    if type(kpb) == float and np.size(bend, 0) > 1:
-        kpb = np.asarray(npm.repmat(kpb, np.size(bend, 0), 1))
+    kptb = get_opt("K_b", 0.1)
+    if type(kptb) == float and np.size(bend, 0) > 1:
+        kpb : npt.NDArray = np.asarray(npm.repmat(kptb, np.size(bend, 0), 1))
+    elif type(kptb) == np.ndarray:
+        kpb : npt.NDArray = kptb
+    else:
+        raise ValueError()
         
     kpf = get_opt("K_f", 0.1 * kpb[0])
     if np.size(kpf, 0) == 1 and np.size(fold, 0) > 1:
@@ -113,62 +117,65 @@ def prepare_data(node : npt.ArrayLike, panel : npt.ArrayLike, supp : npt.ArrayLi
 
     if (analy_input_opt.get("model_type") == "N4B5"):
         
-        truss : Truss = {}
-        truss["cm"] = get_opt("bar_cm", lambda Ex, incl: ogden(Ex, 1e4, incl))
-        truss["node"] = node
-        truss["bars"] = bars
-        truss["trigl"] = trigl
-        truss["b"] = b
-        truss["l"] = l.reshape((-1, 1))
-        truss["fixed_dofs"] = np.unique(rs)
-        truss["a"] = a_bar.reshape((-1, 1))
+        truss : Truss = {
+            "node" : node,
+            "bars" : bars,
+            "trigl" : trigl,
+            "b" : b,
+            "l" : l.reshape((-1,1)),
+            "cm" : get_opt("bar_cm", lambda Ex, incl: ogden(Ex, 1e4, incl)),
+            "fixed_dofs" : np.unique(rs),
+            "a" : a_bar.reshape((-1, 1)),
+            "u_0": get_opt("u_0", np.zeros((np.size(node, 0), 1)))
+        }
 
-        angles : Angles = {}
-        angles["cm_bend"] = get_opt("rot_spr_bend", lambda he,h0,kb,l0: enhanced_linear(he, h0, kb, l0, 45, 315))
-        angles["cm_fold"] = get_opt("rot_spr_fold", lambda he,h0,kb,l0: enhanced_linear(he, h0, kb, l0, 45, 315))
-        angles["fold"] = fold
-        angles["bend"] = bend
-        angles["k_b"] = kpb
-        angles["k_f"] = kpf 
-        angles["pf_0"] = pf_0
-        angles["pb_0"] = pb_0
-        angles["panel"] = panel
-
-    elif analy_input_opt["model_type"] == "N5B8":
+        angles : Angles = {
+            "cm_fold" : get_opt("rot_spr_fold", lambda he,h0,kb,l0,incl_espr: enhanced_linear(he, h0, kb, l0, 45, 315, incl_espr)),
+            "cm_bend" : get_opt("rot_spr_bend", lambda he,h0,kb,l0,incl_espr: enhanced_linear(he, h0, kb, l0, 45, 315, incl_espr)),
+            "fold" : fold,
+            "bend" : bend,
+            "k_b" : kpb,
+            "k_f" : kpf ,
+            "pf_0" : pf_0,
+            "pb_0" : pb_0,
+            "panel" : panel
+        }
         
-        truss : Truss = {}
-        truss["node"] = node
-        truss["bars"] = bars
-        truss["trigl"] = trigl
-        truss["b"] = b
-        truss["l"] = l.reshape((-1, 1))
-        truss["fixed_dofs"] = np.unique(rs)
 
-        angles : Angles = {}
+    elif analy_input_opt.get("model_type") == "N5B8":
         
-        angles["fold"] = fold
-        angles["bend"] = bend
-        angles["pf_0"] = pf_0
-        angles["pb_0"] = pb_0
-        angles["panel"] = panel
-
         mater_calib = get_opt("mater_calib", "auto")
 
         if (mater_calib == "manual"):
-            truss["cm"] = get_opt("bar_cm", lambda x, incl: ogden(x, 1e4, incl))
-            truss["a"] = a_bar.reshape((-1, 1))
+            truss : Truss = {
+                "node" : node,
+                "bars" : bars,
+                "trigl" : trigl,
+                "b" : b,
+                "l" : l.reshape((-1, 1)),
+                "fixed_dofs" : np.unique(rs),
+                "cm" : get_opt("bar_cm", lambda x, incl: ogden(x, 1e4, incl)),
+                "a" : a_bar.reshape((-1, 1)),
+                "u_0" : None
+            }
 
-            angles["cm_bend"] = get_opt("rot_spr_bend", lambda he,h0,kb,l0: enhanced_linear(he, h0, kb, l0, 45, 315))
-            angles["cm_fold"] = get_opt("rot_spr_fold", lambda he,h0,kb,l0: enhanced_linear(he, h0, kb, l0, 45, 315))
-
-            angles["k_b"] = kpb
-            angles["k_f"] = kpf
+            angles : Angles = {
+                "fold" : fold,
+                "bend" : bend,
+                "pf_0" : pf_0,
+                "pb_0" : pb_0,
+                "panel" : panel,
+                "cm_bend" : get_opt("rot_spr_bend", lambda he,h0,kb,l0,incl_espr: enhanced_linear(he, h0, kb, l0, 45, 315, incl_espr)),
+                "cm_fold" : get_opt("rot_spr_fold", lambda he,h0,kb,l0,incl_espr: enhanced_linear(he, h0, kb, l0, 45, 315, incl_espr)),
+                "k_b" : kpb,
+                "k_f" : kpf
+            }
+            
 
         else: 
             ey = get_opt("mod_elastic", 1e9)
             nv = get_opt("poisson", 0.33)
             thck = get_opt("thickness", 0.15e-2)
-            truss['cm'] = get_opt("bar_cm", lambda ex, incl: ogden(ex, ey, incl))
             a_bar = np.zeros((np.size(bars, 0),))
             kpb = np.zeros((np.size(bend, 0), 1))
             kpf = np.zeros((np.size(fold, 0), 1))
@@ -187,14 +194,36 @@ def prepare_data(node : npt.ArrayLike, panel : npt.ArrayLike, supp : npt.ArrayLi
                 if kpbj.shape[0] != 0:
                     kpb[kpbj[:, 0].astype("int32")] = (kpb[kpbj[:, 0].astype("int32")] + np.reshape(kpbj[:, 1], (-1, 1)))
             
-            truss["a"] = a_bar.reshape((-1, 1))
-            angles["cm_bend"] = get_opt("rot_spr_bend", lambda he, h0, kp, l0, include_espr: super_linear_bend(he, h0, kp, l0, include_espr))
-            angles["cm_fold"] = get_opt("rot_spr_fold", lambda he,h0,kb,l0, incl_espr: enhanced_linear(he, h0, kb, l0, 45, 315, incl_espr))
-            angles["k_b"] = kpb
-            angles["k_f"] = kpf
+            truss : Truss = {
+                "node" : node,
+                "bars" : bars,
+                "trigl" : trigl,
+                "b" : b,
+                "l" : l.reshape((-1, 1)),
+                "fixed_dofs" : np.unique(rs),
+                "cm" : get_opt("bar_cm", lambda ex, incl: ogden(ex, ey, incl)),
+                "a" : a_bar.reshape((-1, 1)),
+                "u_0" : None
+            }
+
+            angles : Angles = {
+                "fold" : fold,
+                "bend" : bend,
+                "pf_0" : pf_0,
+                "pb_0" : pb_0,
+                "panel" : panel,
+                "cm_bend" : get_opt("rot_spr_bend", lambda he, h0, kp, l0, include_espr: super_linear_bend(he, h0, kp, l0, include_espr)),
+                "cm_fold" : get_opt("rot_spr_fold", lambda he,h0,kb,l0, incl_espr: enhanced_linear(he, h0, kb, l0, 45, 315, incl_espr)),
+                "k_b" : kpb,
+                "k_f" : kpf
+            }
+
+    else:
+        raise ValueError()
     return truss, angles, analy_input_opt
 
 def _get_material(node, lst, indexctr, e, nv, t, fold, bend, bdry):
+
     fold = np.sort(fold[:, : 2], 1)
     nf = np.size(fold, 0)
     bend = np.sort(bend[:, : 2], 1)
@@ -204,7 +233,6 @@ def _get_material(node, lst, indexctr, e, nv, t, fold, bend, bdry):
     pairs = np.sort(np.vstack([lst, np.roll(lst, np.size(lst) - 1)]), 0).T
     lf = np.sqrt(np.sum(np.power(node[pairs[:, 1]] - node[pairs[:, 0]], 2), 1))
 
-
     if (np.size(lst)) == 3:
         s = 0.5 * np.linalg.norm(np.cross(node[lst[1]] - node[lst[0]], node[lst[2]] - node[lst[0]]))
         a = t * 2 * s / (np.sum(lf) * (1 - nv)) # t * s introduces noticeable error in matlab
@@ -212,7 +240,7 @@ def _get_material(node, lst, indexctr, e, nv, t, fold, bend, bdry):
         if (np.size(indfd) < 3):
             _, inddd, _ = _intersect_2d(bdry, pairs)
         else:
-            inddd = []
+            inddd = np.array([])
         kpbj = np.empty((0,))
         abarj = np.hstack([np.hstack([indfd + nb, inddd + nf + nb]).reshape(1, -1), a * np.ones((np.size(lst), 1))])
 
@@ -235,6 +263,8 @@ def _get_material(node, lst, indexctr, e, nv, t, fold, bend, bdry):
         elif np.size(indfd) < np.size(lst):
             _, inddd, edd = _intersect_2d(bdry, pairs)
             abarj = np.hstack([np.vstack([indbd.reshape((-1, 1)), (indfd + nb).reshape((-1, 1)), (inddd + nf + nb).reshape((-1, 1))]), np.vstack([ab.reshape((-1, 1)), af[efd].reshape((-1, 1)), af[edd].reshape((-1, 1))])])
+        else:
+            raise ValueError()
     elif np.size(lst) > 4:
         _, indfd, _ = _intersect_2d(fold.astype(int), pairs.astype(int))
         spoke = np.sort(np.hstack((lst.reshape((1, -1)).T, np.ones((np.size(lst), 1)) * indexctr)), 1)
@@ -249,12 +279,16 @@ def _get_material(node, lst, indexctr, e, nv, t, fold, bend, bdry):
         elif np.size(indfd) < np.size(lst):
             _, inddd, _ = _intersect_2d(bdry, pairs.astype(int))
             abarj = np.hstack([np.hstack([indbd, indfd + nb, inddd + nb + nf]).reshape(1, -1).T, a * np.ones((2 * np.size(lst), 1))])
+        else:
+            raise ValueError()
         np.divide(sa.T, lb).T
         D = np.matmul(sa, sa.T)
         id = np.argmin(D, 0)
         dsl = lb + lb[id]
         kb = np.divide(g * ((dsl / t) ** (1 / 3)), dsl)
         kpbj = np.vstack([indbd, kb]).T
+    else:
+        raise ValueError()
     return abarj, kpbj
 
 def _put_if_none(d, opt, default):
@@ -266,7 +300,7 @@ def _get_or_default(d : AnalyInputOpt, opt, default):
     return default if out == None else out
 
 # panel is n x 1 made of lists (this is necessary to make it non-rectangular)
-def _find_bend(panel : npt.NDArray, node : npt.NDArray, model_type : str):
+def _find_bend(panel : npt.NDArray, node : npt.NDArray, model_type : Union[str, None]) -> Tuple[npt.NDArray, npt.NDArray, npt.NDArray]:
     if model_type == "N4B5":
         bend = _nan(3 * panel.shape[0], 4)
         cntb = 0
@@ -299,9 +333,9 @@ def _find_bend(panel : npt.NDArray, node : npt.NDArray, model_type : str):
                 cntb += np.size(bi_edge, axis = 0)
         
         bend = np.delete(bend, np.any(np.isnan(bend), axis = 1), axis = 0)
-        panelctr = []
+        panelctr = np.array([])
         return (bend, node, panelctr)
-    elif model_type == "N5B8": #TODO: node is incorrectly converted
+    else: #TODO: node is incorrectly converted
         nn = np.size(node, axis = 0) - 1
         bend = _nan(6 * np.size(panel, 0), 4)
         panelctr = _nan(np.size(panel, 0), 1)
@@ -409,7 +443,7 @@ def _nan(*shape):
 
 def _divide_polygon(poly_coord : npt.NDArray) -> npt.NDArray:
     if (poly_coord.shape[0]) <= 3:
-        return []
+        return np.array([])
     else:
         G = np.triu(np.ones((poly_coord.shape[0], poly_coord.shape[0])), 2)
         G[0, -1] = 0
@@ -459,10 +493,10 @@ def _direc3d(node, ele):
     L = np.sqrt(np.power(D[:, 0], 2) + np.power(D[:, 1], 2) + np.power(D[:, 2], 2))
     D = np.array([np.divide(D[:, 0], L), np.divide(D[:, 1], L), np.divide(D[:, 2], L)]).T
     B = csr_matrix(
-        (np.matrix.flatten(np.block([D, -D])),
+        (np.block([D, -D]).flatten(),
         (
-            np.matrix.flatten(npm.repmat(np.arange(ne).reshape(1, ne).T, 1, 6)), 
-            np.matrix.flatten(np.array([3 * ele[:, 0] + 1 - 1, 3 * ele[:, 0] + 2- 1, 3 * ele[:, 0] + 3- 1, 3 * ele[:, 1] + 1- 1, 3 * ele[:, 1] + 2- 1, 3 * ele[:, 1] + 3- 1]).T)
+            npm.repmat(np.arange(ne).reshape(1, ne).T, 1, 6).flatten(), 
+            np.array([3 * ele[:, 0] + 1 - 1, 3 * ele[:, 0] + 2- 1, 3 * ele[:, 0] + 3- 1, 3 * ele[:, 1] + 1- 1, 3 * ele[:, 1] + 2- 1, 3 * ele[:, 1] + 3- 1]).T.flatten()
         )),
         shape = (ne, 3 * nn))
     B = -B

@@ -1,46 +1,73 @@
 import numpy.typing as npt
 from typing import Callable, NotRequired, Union, Tuple, Any, Optional, TypedDict
+import scipy.sparse as sp
 
 class AnalyInputOpt(TypedDict):
     model_type : NotRequired[str]   
     mater_calib : NotRequired[str]  
     bar_cm : NotRequired[Callable[[npt.NDArray, bool], Tuple[npt.NDArray, npt.NDArray, Optional[npt.NDArray]]]]
-    rot_spr_bend : NotRequired[Callable[[npt.ArrayLike, npt.ArrayLike, Any, npt.ArrayLike], Tuple[npt.ArrayLike, npt.ArrayLike, npt.ArrayLike]]]
-    rot_spr_fold : NotRequired[Callable[[npt.ArrayLike, npt.ArrayLike, Any, npt.ArrayLike], Tuple[npt.ArrayLike, npt.ArrayLike, npt.ArrayLike]]]
-    a_bar : NotRequired[Union[npt.ArrayLike, float]]
-    K_b : NotRequired[npt.ArrayLike]
-    K_f : NotRequired[npt.ArrayLike]
+    rot_spr_bend : NotRequired[Callable[[npt.NDArray, npt.NDArray, Any, npt.NDArray, bool], Tuple[npt.NDArray, npt.NDArray, Optional[npt.NDArray]]]]
+    rot_spr_fold : NotRequired[Callable[[npt.NDArray, npt.NDArray, Any, npt.NDArray, bool], Tuple[npt.NDArray, npt.NDArray, Optional[npt.NDArray]]]]
+    a_bar : NotRequired[Union[npt.NDArray, float]]
+    K_b : NotRequired[Union[npt.NDArray, float]]
+    K_f : NotRequired[Union[npt.NDArray, float]]
     mod_elastic : NotRequired[float]
     poisson : NotRequired[float]
     thickness : NotRequired[float]
     l_scale_factor : NotRequired[float]
-    zero_bend : NotRequired[Union[str, float, npt.ArrayLike]]
+    zero_bend : NotRequired[Union[str, float, npt.NDArray]]
     load_type : NotRequired[str]
     load : NotRequired[npt.NDArray]
-    adaptive_load : NotRequired[Callable[[npt.ArrayLike, npt.ArrayLike, float], npt.ArrayLike]]
+    adaptive_load : NotRequired[Callable[[npt.NDArray, npt.NDArray, float], npt.NDArray]]
     initial_load_factor : NotRequired[float]
     max_incr : NotRequired[int]
     disp_step : NotRequired[int]
-    stop_criterion : NotRequired[Callable[[npt.ArrayLike, npt.ArrayLike, float], bool]]
+    stop_criterion : NotRequired[Callable[[npt.NDArray, npt.NDArray, float], bool]]
 
 class Truss(TypedDict):
-    node : npt.ArrayLike
-    bars : npt.ArrayLike
-    trigl : npt.ArrayLike
-    b : npt.ArrayLike
-    l : npt.ArrayLike
-    fixed_dofs : npt.ArrayLike
-    cm : Callable[[Any, Any, Any], Any]
-    a : npt.ArrayLike
-    u_0 : npt.ArrayLike
+    node : npt.NDArray
+    bars : npt.NDArray
+    trigl : npt.NDArray
+    b : sp.csr.csr_matrix
+    l : npt.NDArray
+    fixed_dofs : npt.NDArray
+    cm : Callable[[Any, Any], Any]
+    a : npt.NDArray
+    u_0 : Optional[npt.NDArray]
 
 class Angles(TypedDict):
-    panel : npt.ArrayLike
-    fold : npt.ArrayLike
-    bend : npt.ArrayLike
-    pf_0 : npt.ArrayLike
-    pb_0 : npt.ArrayLike
-    cm_bend : Callable[[npt.ArrayLike, npt.ArrayLike, Any, npt.ArrayLike], Tuple[npt.ArrayLike, npt.ArrayLike, npt.ArrayLike]]
-    cm_fold : Callable[[npt.ArrayLike, npt.ArrayLike, Any, npt.ArrayLike], Tuple[npt.ArrayLike, npt.ArrayLike, npt.ArrayLike]]
-    k_b : npt.ArrayLike
-    k_f : npt.ArrayLike  
+    panel : npt.NDArray
+    fold : npt.NDArray
+    bend : npt.NDArray
+    pf_0 : npt.NDArray
+    pb_0 : npt.NDArray
+    cm_bend : Callable[[npt.NDArray, npt.NDArray, Any, npt.NDArray, bool], Tuple[npt.NDArray, npt.NDArray, Optional[npt.NDArray]]]
+    cm_fold : Callable[[npt.NDArray, npt.NDArray, Any, npt.NDArray, bool], Tuple[npt.NDArray, npt.NDArray, Optional[npt.NDArray]]]
+    k_b : npt.NDArray
+    k_f : npt.NDArray  
+
+
+
+class Bar(TypedDict):
+    ex : npt.NDArray
+    sx : npt.NDArray
+    us_i : npt.NDArray
+    us : npt.NDArray
+
+class Fold(TypedDict):
+    angle : npt.NDArray
+    rm : npt.NDArray
+    uf_i : npt.NDArray
+    uf : npt.NDArray
+
+class Bend(TypedDict):
+    angle : npt.NDArray
+    rm : npt.NDArray
+    ub_i : npt.NDArray
+    ub : npt.NDArray
+
+class Stat(TypedDict):
+    bar: Bar
+    fold : Fold
+    bend : Bend
+    pe : npt.NDArray

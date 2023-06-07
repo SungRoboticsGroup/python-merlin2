@@ -1,6 +1,7 @@
 import numpy as np
 from src.util.dicts import Truss, Angles
 import numpy.typing as npt
+from typing import Tuple, Optional
 import numpy.matlib as npm
 import scipy.sparse as sp
 
@@ -16,24 +17,28 @@ def _icross(a : npt.NDArray, b : npt.NDArray, cast_to_3d = False) -> npt.NDArray
         ))
     return a if not cast_to_3d else np.expand_dims(a, 2)
 
-def globalk_fast_ver(ui : npt.NDArray, node : npt.NDArray, truss : Truss, angles : Angles, incl_k : bool):
+def globalk_fast_ver(ui : npt.NDArray, node : npt.NDArray, truss : Truss, angles : Angles, incl_k : bool) -> Tuple[npt.NDArray, Optional[sp._csr.csr_matrix]]:
     nn = np.size(node, 0)
-    nodenw = np.zeros((nn, 3))
+    nodenw = np.zeros((nn, 3), dtype=np.longdouble)
     nodenw[:, [0]] = node[:, [0]] + ui[ : : 3]
     nodenw[:, [1]] = node[:, [1]] + ui[1 : : 3]
     nodenw[:, [2]] = node[:, [2]] + ui[2 : : 3]
 
-    e_dof_b = np.kron(truss["bars"], np.full((1, 3), 3)) + np.tile(np.array([0, 1, 2]), (np.size(truss["bars"], 0), 2))
+    e_dof_b = np.kron(truss.get("bars"), np.full((1, 3), 3)) + np.tile(np.array([0, 1, 2]), (np.size(truss["bars"], 0), 2))
     du = (ui[e_dof_b[:, : 3]] - ui[e_dof_b[:, 3 : 6]])[:, :, 0]
-    ex = truss["b"].dot(ui) / truss["l"] + 0.5 * (np.sum(np.power(du, 2), 1, keepdims=True) / np.power(truss["l"].reshape((-1, 1)), 2))
-    sx, et = truss["cm"](ex, False)
+    b = truss.get("b")
+    assert type(b) == sp._csr.csr_matrix
+    ex = b.dot(ui) / truss.get("l") + 0.5 * (np.sum(np.power(du, 2), 1, keepdims=True) / np.power(truss["l"].reshape((-1, 1)), 2))
+    cm = truss.get("cm")
+    assert cm != None
+    sx, et, _ = cm(ex, False)
     duelem = np.block([du, -du])
     du = sp.csr_matrix((duelem.reshape((-1,), order="F"), (np.tile(np.arange(np.size(et)), (1, 6)).reshape((-1,)), e_dof_b.reshape((-1,), order="F"))), (np.size(et), np.size(ui)))
-    fx = sx * truss["a"]
-    IFb = (np.sum(truss["b"].T.dot(fx), 1, keepdims=True) + np.sum(du.T.dot(fx / truss["l"]), 1, keepdims=True))
-    kel = truss["b"].T.dot(
-        sp.csr_matrix((((et * truss["a"]) / truss["l"]).flatten(), (np.arange(np.size(et)), np.arange(np.size(et)))))
-                    ).dot(truss["b"])
+    fx = sx * truss.get("a")
+    IFb = (np.sum(truss.get("b").T.dot(fx), 1, keepdims=True) + np.sum(du.T.dot(fx / truss["l"]), 1, keepdims=True))
+    kel = truss.get("b").T.dot(
+        sp.csr_matrix((((et * truss.get("a")) / truss.get("l")).flatten(), (np.arange(np.size(et)), np.arange(np.size(et)))))
+                    ).dot(truss.get("b"))
                     
     
     k1 = du.T.dot(sp.csr_matrix((((et * truss["a"]) / np.square(truss["l"])).flatten(), (np.arange(np.size(et)), np.arange(np.size(et)))))
@@ -76,16 +81,16 @@ def globalk_fast_ver(ui : npt.NDArray, node : npt.NDArray, truss : Truss, angles
     rnk2 = np.sum(np.square(rnk), 0)
     norm_rnk = np.sqrt(rnk2)
 
-    he = sgn * np.real(np.arccos(dt_rmjrnk / (norm_rmj * norm_rnk)))
+    he = sgn * np.real(np.arccos(np.clip(dt_rmjrnk / (norm_rmj * norm_rnk), -1, 1)))
     he[he < 0] = 2 * np.pi + he[he < 0]
     rspr = np.zeros(np.size(he)).reshape((-1, 1))
     kspr = np.ndarray.copy(rspr)
-    rspr_b, kspr_b = angles["cm_bend"](he[: np.size(angles["bend"], 0)].reshape((-1, 1)), angles["pb_0"], angles["k_b"], truss["l"][: np.size(angles["bend"], 0)], False)
-    rspr_f, kspr_f = angles["cm_fold"](he[np.size(angles["bend"], 0) : ].T, angles["pf_0"], angles["k_f"], truss["l"][np.size(angles["bend"], 0) : np.size(angles["bend"], 0) + np.size(angles["fold"], 0)], False)
+    rspr_b, kspr_b, _ = angles["cm_bend"](he[: np.size(angles["bend"], 0)].reshape((-1, 1)), angles["pb_0"], angles["k_b"], truss["l"][: np.size(angles["bend"], 0)], False)
+    rspr_f, kspr_f, _ = angles["cm_fold"](he[np.size(angles["bend"], 0) : ].reshape((-1, 1)), angles["pf_0"], angles["k_f"].reshape((-1, 1)), truss["l"][np.size(angles["bend"], 0) : np.size(angles["bend"], 0) + np.size(angles["fold"], 0)], False)
     rspr[: np.size(angles["bend"], 0)] = rspr_b
     kspr[: np.size(angles["bend"], 0)] = kspr_b
     rspr[np.size(angles["bend"], 0) :] = rspr_f.reshape((-1,1))
-    rspr[np.size(angles["bend"], 0) :] = kspr_f.reshape((-1,1))
+    kspr[np.size(angles["bend"], 0) :] = kspr_f.reshape((-1,1))
     dt_rijrkj = np.sum(rij * rkj, 0)
     dt_rklrkj = np.sum(rkl * rkj, 0)
 
@@ -118,7 +123,7 @@ def globalk_fast_ver(ui : npt.NDArray, node : npt.NDArray, truss : Truss, angles
         dt_rijrkj3 = np.sum(rij3 * rkj3, 0)
         dt_rklrkj3 = np.sum(rkl3 * rkj3, 0)
         
-        dii = -((np.transpose(rmj3, (0, 2, 1)) * np.transpose(_icross(rkj3, rmj3, True), (2, 0, 1)) + 
+        dii = -1 * ((np.transpose(rmj3, (0, 2, 1)) * np.transpose(_icross(rkj3, rmj3, True), (2, 0, 1)) + 
                np.transpose(np.transpose(rmj3, (0, 2, 1)) * np.transpose(_icross(rkj3, rmj3, True), (2, 0, 1)), (1, 0, 2)))
              * np.transpose(norm_rkj3 / (np.square(rmj23)), (2, 0, 1)))
         
@@ -195,5 +200,5 @@ def globalk_fast_ver(ui : npt.NDArray, node : npt.NDArray, truss : Truss, angles
         k = k + sp.csr_matrix((np.full((3*nn,), 1e-8), (np.arange(3*nn), np.arange(3*nn))), (3*nn, 3*nn))
         return IF, k
     else:
-        return IF
+        return IF, None
         

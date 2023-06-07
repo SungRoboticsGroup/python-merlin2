@@ -17,7 +17,7 @@ def load_obj(fp : str):
             tline = tline[: -1]
             ln = tline.split()[0]
             if ln == "v":
-                node.append([float(f) for f in tline.split(" ")[1 : ]])
+                node.append([f for f in tline.split(" ")[1 : ]])
             elif ln == "f":
                 line = tline[2 : ]
 
@@ -25,7 +25,7 @@ def load_obj(fp : str):
                 nf = line.count("/", 0, line.index(" ")) + 1
                 panel.append([int(f) - 1 for f in allind[ : : nf]])
     
-    return np.array(node), np.array(panel, dtype=object)
+    return np.array(node, dtype=np.longdouble), np.array(panel, dtype=object)
 
 if __name__ == "__main__":
     node, panel = load_obj("example/GMiura_FreeformOri.obj")

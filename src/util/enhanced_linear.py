@@ -1,7 +1,8 @@
 import numpy as np
 import numpy.typing as npt
+from typing import Tuple, Optional
 
-def enhanced_linear(he : npt.NDArray, h0, kpi, l0, limlft, limrt, incl_espr):
+def enhanced_linear(he : npt.NDArray, h0, kpi, l0, limlft, limrt, incl_espr) -> Tuple[npt.NDArray, npt.NDArray, Optional[npt.NDArray]]:
     limlft = limlft / 180 * np.pi
     limrt = limrt / 180 * np.pi
     # limlft: theta_1: left partition point
@@ -75,7 +76,7 @@ def enhanced_linear(he : npt.NDArray, h0, kpi, l0, limlft, limrt, incl_espr):
             ), 2
         )
     ).reshape((-1,), order="F")
-    rspr[mInd] = np.multiply(kpi[mInd], np.real(he[mInd] - h0[mInd])).reshape((-1,), order="F")
+    rspr[mInd] = (kpi[mInd] * np.real(he[mInd] - h0[mInd])).reshape((-1,), order="F")
     kspr[mInd] = kpi[mInd]
     rspr = np.multiply(l0, rspr)
     kspr = np.multiply(l0, kspr)
@@ -137,7 +138,7 @@ def enhanced_linear(he : npt.NDArray, h0, kpi, l0, limlft, limrt, incl_espr):
         espr = np.multiply(l0, espr)
         return rspr, kspr, espr
     else:
-        return rspr, kspr
+        return rspr, kspr, None
 
 
 

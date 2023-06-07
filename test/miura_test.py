@@ -14,6 +14,7 @@ except ValueError: # Already removed
     pass
 
 from src import *
+from src.util import *
 # from prepare_data import prepare_data, AnalyInputOpt
 # from load_obj import load_obj
 # from ogden import ogden
@@ -23,8 +24,8 @@ do_n4b5 = False
 
 node, panel = load_obj("example/GMiura_FreeformOri.obj")
 m = np.size(node, 0)
-supp = np.array([[8, 1, 1, 1], [2, 0, 1, 1], [59, 1, 0, 1]])
-indp = 59
+supp = np.array([[7, 1, 1, 1], [1, 0, 1, 1], [58, 1, 0, 1]])
+indp = 58
 ff = -30 * np.ones((np.size(indp),), dtype = int)
 load = np.hstack([indp, np.zeros((np.size(indp),)), ff, np.zeros((np.size(indp),))]).reshape((1, -1)).astype(int)
 if not do_n4b5:
@@ -42,12 +43,12 @@ else:
     analy_input_opt : AnalyInputOpt = {
         "model_type": "N4B5",
         "mater_calib": "manual",
-        "bar_cm": lambda ex: ogden(ex, 1e4),
+        "bar_cm": lambda ex, incl: ogden(ex, 1e4, incl),
         "a_bar": 2e-1,
-        "k_b": 0.3,
-        "k_f": 0.03,
-        "rot_spr_bend": lambda he, h0, kb, l0: enhanced_linear(he, h0, kb, l0, 30, 330),
-        "rot_spr_fold": lambda he, h0, kb, l0: enhanced_linear(he, h0, kb, l0, 30, 330),
+        "K_b": 0.3,
+        "K_f": 0.03,
+        "rot_spr_bend": lambda he, h0, kb, l0, incl: enhanced_linear(he, h0, kb, l0, 30, 330, incl),
+        "rot_spr_fold": lambda he, h0, kb, l0, incl: enhanced_linear(he, h0, kb, l0, 30, 330, incl),
         "load_type":"displacement",
         "disp_step":200
     }
@@ -55,8 +56,9 @@ else:
 
 truss, angles, analy_input_opt = prepare_data(node, panel, supp, load, analy_input_opt)
 truss["u_0"] = np.zeros((3 * np.size(truss["node"], 0), 1))
-u_his, f_his = path_analysis(truss, angles, analy_input_opt)
+u_his, f_his = path_analysis(truss, angles, analy_input_opt, False)
 u_his = np.real(u_his)
 f_his = np.real(f_his)
 
+stat = post_process(u_his, truss, angles)
 pass
