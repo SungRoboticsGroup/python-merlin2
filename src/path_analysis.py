@@ -14,9 +14,10 @@ def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOp
 
     u = truss.get("u_0")
     if not isinstance(u, np.ndarray):
-        u = np.zeros((3 * np.size(node, 0), 1), dtype=np.longdouble)
+        u = np.zeros((3 * np.size(node, 0), 1))
     else:
-        u = u.astype(np.longdouble)
+        u = u.copy()
+
 
     stop = analy_input_opt.get("stop_criterion")
     assert stop != None
@@ -58,7 +59,7 @@ def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOp
                     assert type(K) == sp._csc.csc_matrix
                     R = lmd * F - IF
                     MRS = np.hstack((F, R))
-                    mul[free_dofs, :] = np.linalg.solve(K.toarray()[np.ix_(free_dofs, free_dofs)], MRS[free_dofs])
+                    mul[free_dofs, :] = np.linalg.solve(K.toarray().astype(float)[np.ix_(free_dofs, free_dofs)], MRS.astype(float)[free_dofs])
                     d_up = mul[:, 0]
                     d_ur = mul[:, 1]
                     if iter == 0: d_ur *= 0
@@ -133,7 +134,7 @@ def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOp
                 if do_prints:
                     print(f"\titer = {iter}, err = {err:6.4f}")
             
-            if iter >= (((mvstepsize > 1) + 1) * max_iter / (damping + 1)):
+            if iter >= (((mvstepsize > 1) + 1) * max_iter / (damping + 1)) - 1:
                 # an aggressive step needs more iterations
                 attmpts += 1
                 icrm -= 1
@@ -146,7 +147,7 @@ def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOp
                     damping *= 0.75
                     if do_prints:
                         print("Taking a more aggressive step...")
-                u = u_his[:, [max(icrm, 1)]] # restore displacement
+                u = u_his[:, [max(icrm, 0)]] # restore displacement
             else:
                 dspmvd += mvstepsize / disp_step
                 attmpts = 0

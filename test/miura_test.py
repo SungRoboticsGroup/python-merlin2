@@ -1,9 +1,10 @@
 import numpy as np
 import sys
+import scipy.sparse as sp
 
 # hacky fix for import issues bc of package structuring, taken from https://stackoverflow.com/questions/16981921/relative-imports-in-python-3
 from pathlib import Path # if you haven't already done so
-file = Path(__file__).resolve()
+file = Path(__file__).resolve() # type: ignore
 parent, root = file.parent, file.parents[1]
 sys.path.append(str(root))
 
@@ -56,9 +57,23 @@ else:
 
 truss, angles, analy_input_opt = prepare_data(node, panel, supp, load, analy_input_opt)
 truss["u_0"] = np.zeros((3 * np.size(truss["node"], 0), 1))
-u_his, f_his = path_analysis(truss, angles, analy_input_opt, False)
+u_his, f_his = path_analysis(truss, angles, analy_input_opt, True)
 u_his = np.real(u_his)
 f_his = np.real(f_his)
 
 stat = post_process(u_his, truss, angles)
+
+instdof = np.array([indp, 2])
+interv = 1
+endicrm = np.size(u_his, 1)
+
+v_intensity_data_inten = np.zeros((np.size(truss["node"], 0), np.size(u_his, 1)))
+intensity_data_m = stat["bar"]["sx"] * truss["a"]
+for k in range(np.size(u_his, 1)):
+    intensity_data_inten_k = sp.csr_array((np.abs(intensity_data_m[:, k]), (truss["bars"][:, 0], truss["bars"][:, 1])), tuple(np.size(truss["node"], 0) for i in range(2)))
+    v_intensity_data_inten[:, k] = np.sum(intensity_data_inten_k + intensity_data_inten_k.T, 1)
 pass
+# visual_fold(u_his[:, :endicrm:interv], truss, angles, f_his[:endicrm:interv], instdof, intensity_map="vertex", intensity_data = v_intensity_data_inten)
+visual_fold(u_his[:, :endicrm:10], truss, angles, np.array([]), np.array([]), intensity_map = "edge", intensity_data = stat["bar"]["sx"][:, :endicrm:10], show_initial=False)
+visual_fold(u_his[:, :endicrm: interv], truss, angles, np.array([]), np.array([]))
+

@@ -25,7 +25,7 @@ def load_obj(fp : str):
                 nf = line.count("/", 0, line.index(" ")) + 1
                 panel.append([int(f) - 1 for f in allind[ : : nf]])
     
-    return np.array(node, dtype=np.longdouble), np.array(panel, dtype=object)
+    return np.array(node, dtype=float), np.array(panel, dtype=object)
 
 if __name__ == "__main__":
     node, panel = load_obj("example/GMiura_FreeformOri.obj")

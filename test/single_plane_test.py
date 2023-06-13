@@ -6,6 +6,9 @@ from src.util.enhanced_linear import enhanced_linear
 from src.prepare_data import prepare_data
 from src.path_analysis import path_analysis
 from src.post_process import post_process
+from src.visual_fold import visual_fold
+from src.plot_ori import plot_ori
+import matplotlib.pyplot as plt
 
 def test_single_plane(do_n4b5=False):
     node = np.array([[0, 0, 0], [0, 10, 0], [12, 15, 0], [30, 10, 0], [30, 0, 0], [18, -5, 0]]) * 2
@@ -40,7 +43,7 @@ def test_single_plane(do_n4b5=False):
         analy_input_opt["load_type"] = "Force"
         analy_input_opt["initial_load_factor"] = 0.00001
         analy_input_opt["max_incr"] = 100
-        analy_input_opt["stop_criterion"] = lambda node, u, icrm: np.abs(u[5*3 - 1] > 12)
+        analy_input_opt["stop_criterion"] = lambda node, u, icrm: np.abs(u[5*3 - 1]) > 12
 
     truss, angles, analy_input_opt = prepare_data(node, panel, supp, load, analy_input_opt) # type: ignore
     truss["u_0"] = np.zeros((3 * np.size(truss["node"], 0), 1))
@@ -49,6 +52,42 @@ def test_single_plane(do_n4b5=False):
     f_his = np.real(f_his)
 
     stat = post_process(u_his, truss, angles)
-    pass
+    instdof = np.array([5, -3])
+    interv = 1
+    endicrm = np.size(u_his, 1)
+    visual_fold(u_his[:, : endicrm : interv], truss, angles, f_his[: endicrm : interv], instdof)
+    f1 = plt.figure()
+    ax1 = f1.add_subplot()
+    dsp = np.sign(instdof[1]) * u_his[[instdof[0] * 3 - (3 - np.abs(instdof[1])) - 1]]
+
+    ax1.plot(dsp.T, f_his, "-k")
+    ax1.set_xlabel("Displacement", fontsize=14)
+    ax1.set_ylabel("Force", fontsize=14)
+    f1.tight_layout()
+    plt.show(block=False)
+
+    f2 = plt.figure()
+    ax2 = f2.add_subplot()
+
+    ax2.plot(dsp.flatten(), stat["pe"], "r-", linewidth = 2)
+    ax2.set_xlabel("Displacement", fontsize=14)
+    ax2.set_ylabel("Stored Energy", fontsize=14)
+    f2.tight_layout()
+
+    plt.show(block=False)
+
+    f3 = plt.figure()
+    ax3 = f3.add_subplot(projection="3d")
+    plot_ori(ax3, truss["node"],angles["panel"],truss["trigl"].astype(int),fold_edge_style='-',edge_shade=0.3,panel_color=None)
+
+    nodew = truss["node"].copy()
+    ux = u_his[:, -1]
+    nodew[:, 0] += ux[::3]
+    nodew[:, 1] += ux[1::3]
+    nodew[:, 2] += ux[2::3]
+    plot_ori(ax3, nodew,angles["panel"],truss["trigl"].astype(int),panel_color='g')
+    ax3.axis("off")
+    plt.show(block=True)
+
 
 test_single_plane(False)

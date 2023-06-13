@@ -19,7 +19,7 @@ def _icross(a : npt.NDArray, b : npt.NDArray, cast_to_3d = False) -> npt.NDArray
 
 def globalk_fast_ver(ui : npt.NDArray, node : npt.NDArray, truss : Truss, angles : Angles, incl_k : bool) -> Tuple[npt.NDArray, Optional[sp._csr.csr_matrix]]:
     nn = np.size(node, 0)
-    nodenw = np.zeros((nn, 3), dtype=np.longdouble)
+    nodenw = np.zeros((nn, 3))
     nodenw[:, [0]] = node[:, [0]] + ui[ : : 3]
     nodenw[:, [1]] = node[:, [1]] + ui[1 : : 3]
     nodenw[:, [2]] = node[:, [2]] + ui[2 : : 3]

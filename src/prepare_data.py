@@ -46,7 +46,6 @@ from src.util.dicts import *
 def prepare_data(node : npt.NDArray, panel : npt.NDArray, supp : npt.NDArray, load : npt.NDArray, analy_input_opt : AnalyInputOpt):
     """
     Load must be a 2d array of ints"""
-    
     put_opt = partial(_put_if_none, analy_input_opt)
     get_opt = partial(_get_or_default, analy_input_opt)
     put_opt("stop_criterion", lambda a, b, c: False)
@@ -83,7 +82,7 @@ def prepare_data(node : npt.NDArray, panel : npt.NDArray, supp : npt.NDArray, lo
         pf_0[i] = fold_ke(node, fold[i].astype(int))
     
     zero_bend = get_opt("zero_bend", "as_is")
-    pb_0 = np.zeros((np.size(bend, 0), 1), dtype="float128")
+    pb_0 = np.zeros((np.size(bend, 0), 1))
 
     if type(zero_bend) != str:
         pb_0 += zero_bend
@@ -91,7 +90,7 @@ def prepare_data(node : npt.NDArray, panel : npt.NDArray, supp : npt.NDArray, lo
         pb_0 += np.pi
     elif zero_bend == "as_is":
         for i in range(np.size(bend, 0)):
-            pb_0[i] = fold_ke(node.astype("float128"), bend[i].astype("int32"))
+            pb_0[i] = fold_ke(node, bend[i].astype("int32"))
 
     if load.shape[0] != 0:
             m = np.size(node, 0)
