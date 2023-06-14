@@ -6,7 +6,17 @@ from matplotlib import tri
 from mpl_toolkits.mplot3d import axes3d
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-
+def _get_panels(panel):
+    if type(panel[0]) == list:
+        len_func = np.vectorize(len)
+        panelsize = len_func(panel)
+        panels = _nan(np.size(panel, 0), np.max(panelsize))
+        for i in range(np.size(panel, 0)):
+            panels[i, : panelsize[i]] = panel[i]
+        return _get_panels(panels)
+    else:
+        return panel.astype(int)
+    
 def interpolate_face_colors(big_tri, small_tri, colors_big_tri):
     # find the center point of each small triangle, and find the closest large triangle point. 
     ctrs = np.average(small_tri, 1).reshape(-1, 3)
@@ -30,16 +40,7 @@ def _plot_trisurf_panels(ax, x, y, z, subdiv = 3, **kwargs):
     new, new_z = refiner.refine_field(z, interpolator, subdiv=subdiv)
     return ax.plot_trisurf(new.x, new.y, new_z, triangles=new.triangles, **kwargs) #TODO: if facecolors are included, have to expand
    
-def _get_panels(panel):
-    if type(panel[0]) == list:
-        len_func = np.vectorize(len)
-        panelsize = len_func(panel)
-        panels = _nan(np.size(panel, 0), np.max(panelsize))
-        for i in range(np.size(panel, 0)):
-            panels[i, : panelsize[i]] = panel[i]
-        return _get_panels(panels)
-    else:
-        return panel.astype(int)
+
     
 def _patch(ax, x, y, z, facecolor=(0,0,0,0), edgecolor='k'):
     pc = Poly3DCollection([list(zip(x,y,z))])       # Create PolyCollection from coords
@@ -62,7 +63,8 @@ def plot_ori(
         face_vertex_color : NDArray[np.float64] = np.array([]),
         edge_color : NDArray[np.float64] = np.array([]),
         bars : NDArray[np.float64] = np.array([]),
-        num_bend_hinge : int = 0
+        num_bend_hinge : int = 0,
+        face_shade : bool = False
     ):
 
     
@@ -70,6 +72,13 @@ def plot_ori(
     panels = _get_panels(panel)
     coords_tri = node[trigl]
     coords_pan = node[panels]
+
+    axislim = np.hstack([np.min(node, 0), np.max(node, 0)])
+    ax.axes.set_xlim3d(left=axislim[0], right=axislim[3]) 
+    ax.axes.set_ylim3d(bottom=axislim[1], top=axislim[4]) 
+    ax.axes.set_zlim3d(bottom=axislim[2], top=axislim[5])
+    ax.set_aspect("equal")
+
 
     if show_number:
         panel_color = None
@@ -82,11 +91,8 @@ def plot_ori(
     if edge_color.size == 0:
         if trigl.size != 0:
             if panel_color in ["flat", "interp"]:
-                for i in range(np.size(coords_pan, 0)):
-                    cpi = coords_pan[i]
-                    cpi = np.vstack((cpi, cpi[0]))
-                    pn = ax.plot_wireframe(cpi[:, [0]], cpi[:, [1]], cpi[:, [2]], facecolor=face_vertex_color[i], linestyles=fold_edge_style, linewidths=1, edgecolors=np.full((1, 3), 1 - edge_shade))
-                pass
+                p1 = Poly3DCollection(coords_pan, facecolor=face_vertex_color, linestyles=fold_edge_style, linewidths=1, edgecolors=np.full((1, 3), 1 - edge_shade))
+
                 # pt = ax.plot_trisurf(node[:, 0], node[:, 1], node[:, 2], color=face_vertex_color, edgecolor = np.full((1, 3), 1 - edge_shade), linestyle = bend_edge_style)
             # elif panel_color == "interp":
                 # # from https://stackoverflow.com/questions/19836199/interpolating-a-3d-surface-known-by-its-corner-nodes-and-coloring-it-with-a-colo
@@ -94,25 +100,27 @@ def plot_ori(
             else:
                 kwargs = {
                     "edgecolors": np.full((1, 3), 1 - edge_shade),
-                    "color": panel_color if panel_color is not None else (0,0,0,0)
+                    "facecolors": panel_color if panel_color is not None else (0,0,0,0)
                 }
                 if bend_edge_style is not None:
                     kwargs["linestyle"] = bend_edge_style
                 else:
-                    kwargs["edgecolor"] = (0,0,0,0)
-                pt = ax.plot_trisurf(node[:, 0], node[:, 1], node[:, 2], **kwargs)
+                    kwargs["edgecolors"] = (0,0,0,0)
+                p1 = Poly3DCollection(coords_tri, **kwargs, shade=face_shade)
+
                 # TODO: refactor all facecolors to color
+            p1.set_sort_zpos(10)
+            ax.add_collection3d(p1)
 
         if trigl.size != 0:
-            for i in range(np.size(coords_pan, 0)):
-                cpi = coords_pan[i]
-                cpi = np.vstack((cpi, cpi[0]))
-                pn = ax.plot_wireframe(cpi[:, [0]], cpi[:, [1]], cpi[:, [2]], facecolor=(0,0,0,0), linestyles=fold_edge_style, linewidths=1, edgecolors=np.full((1, 3), 1 - edge_shade))
+            p2 = Poly3DCollection(coords_pan, facecolor=(0,0,0,0), linestyles=fold_edge_style, linewidths=1, edgecolors=np.full((1, 3), 1 - edge_shade), zorder = 0)
         else:
             if panel_color == "flat":
-                pn = _plot_trisurf_panels(ax, coords_pan[:, 0], coords_pan[:, 1], coords_pan[:, 2], linestyles=fold_edge_style, linewidths=1, edgecolors=np.full((1, 3), 1 - edge_shade), color=face_vertex_color)
+                p2 = Poly3DCollection(coords_pan, facecolor=face_vertex_color, linestyles=fold_edge_style, linewidths=1, edgecolors=np.full((1, 3), 1 - edge_shade))
             else:
-                pn = _plot_trisurf_panels(ax, coords_pan[:, 0], coords_pan[:, 1], coords_pan[:, 2], linestyles=fold_edge_style, linewidths=1, edgecolors=np.full((1, 3), 1 - edge_shade), color=panel_color)
+                p2 = Poly3DCollection(coords_pan, facecolor=panel_color, linestyles=fold_edge_style, linewidths=1, edgecolors=np.full((1, 3), 1 - edge_shade))
+        p2.set_sort_zpos(0)
+        ax.add_collection3d(p2)
 
         if show_number:
             for i in range(np.size(node)):
@@ -121,10 +129,8 @@ def plot_ori(
     else:
         if trigl.size == 0:
             raise ValueError("Edge Coloring mode requires triangulation info")
-        for i in range(np.size(coords_tri, 0)):
-            cpi = coords_tri[i]
-            cpi = np.vstack((cpi, cpi[0]))
-            pn = ax.plot_wireframe(cpi[:, [0]], cpi[:, [1]], cpi[:, [2]], facecolors=tuple(0.85 for i in range(3)) + (0.8,), edgecolors = (0,0,0,0), zorder=0)
+        ax.add_collection3d(Poly3DCollection(coords_pan, facecolor=tuple(0.85 for i in range(3)) + (0.8,), edgecolors=(0,0,0,0)))
+
         for i in range(num_bend_hinge):
             xyz = np.hstack((node[bars[i, 0]], node[bars[i, 1]]))
             ax.plot(xyz[[0,3]].T, xyz[[1, 4]].T, xyz[[2,5]].T, ":", linewidth=1.5, color=edge_color[i],zorder = 5)

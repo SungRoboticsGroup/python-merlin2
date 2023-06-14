@@ -95,10 +95,10 @@ def prepare_data(node : npt.NDArray, panel : npt.NDArray, supp : npt.NDArray, lo
     if load.shape[0] != 0:
             m = np.size(node, 0)
             fd = np.zeros((3*m, 1))
-            indp = load[:, 0]
-            fd[3 * indp] = load[:, 1]
-            fd[3 * indp + 1] = load[:, 2]
-            fd[3 * indp + 2] = load[:, 3]
+            indp = load[:, 0].astype(int)
+            fd[3 * indp] = load[:, 1].reshape(-1, 1)
+            fd[3 * indp + 1] = load[:, 2].reshape(-1, 1)
+            fd[3 * indp + 2] = load[:, 3].reshape(-1, 1)
             analy_input_opt["load"] = fd
 
     # find potential energy constants of bends and folds

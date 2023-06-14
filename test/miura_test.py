@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 import scipy.sparse as sp
+import matplotlib.pyplot as plt
 
 # hacky fix for import issues bc of package structuring, taken from https://stackoverflow.com/questions/16981921/relative-imports-in-python-3
 from pathlib import Path # if you haven't already done so
@@ -73,7 +74,8 @@ for k in range(np.size(u_his, 1)):
     intensity_data_inten_k = sp.csr_array((np.abs(intensity_data_m[:, k]), (truss["bars"][:, 0], truss["bars"][:, 1])), tuple(np.size(truss["node"], 0) for i in range(2)))
     v_intensity_data_inten[:, k] = np.sum(intensity_data_inten_k + intensity_data_inten_k.T, 1)
 pass
-# visual_fold(u_his[:, :endicrm:interv], truss, angles, f_his[:endicrm:interv], instdof, intensity_map="vertex", intensity_data = v_intensity_data_inten)
+visual_fold(u_his[:, :endicrm:interv], truss, angles, f_his[:endicrm:interv], instdof, intensity_map="vertex", intensity_data = v_intensity_data_inten, record_type = "imggif", filename="miura_test")
 visual_fold(u_his[:, :endicrm:10], truss, angles, np.array([]), np.array([]), intensity_map = "edge", intensity_data = stat["bar"]["sx"][:, :endicrm:10], show_initial=False)
 visual_fold(u_his[:, :endicrm: interv], truss, angles, np.array([]), np.array([]))
 
+plt.show(block = True)

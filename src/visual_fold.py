@@ -4,9 +4,13 @@ import matplotlib.pyplot as plt
 from matplotlib import axes
 import matplotlib.animation as anim
 from mpl_toolkits.mplot3d.axes3d import Axes3D
-from src.plot_ori import plot_ori
+from src.plot_ori import plot_ori, _get_panels
 from time import sleep
+from src.prepare_data import _nan
+
 mpl.use("Qt5agg")
+
+
 def visual_fold(
         u_his, 
         truss, 
@@ -17,13 +21,13 @@ def visual_fold(
         show_initial=True, 
         filename="", 
         pause_time = 0.0001, 
-        axislim = np.array([-np.inf, np.inf, -np.inf, np.inf]),
+        axislim = None,
         intensity_map = "off",
         intensity_data = np.array([]),
         view_angle = (35.0, 30.0)):
     node = truss["node"]
     trigl = truss["trigl"].astype(int)
-    panel = angles["panel"].astype(int)
+    panel = _get_panels(angles["panel"])
     u_his = np.hstack((truss["u_0"], u_his))
     col_col = None
     v_intensity_data_inten_index = None
@@ -94,6 +98,9 @@ def visual_fold(
     if writer is not None:
         writer.setup(f1, filename + (".gif" if record_type == "imggif" else ".mp4"))
 
+    if axislim is None:
+        axislim = np.hstack([np.min(node, 0), np.max(node, 0)])
+
     ax : Axes3D.__class__ = f1.add_subplot(projection="3d")
     f1.show()
     #TODO: figure this out , position=100 + np.array([0, 0, 720, 500])
@@ -106,6 +113,10 @@ def visual_fold(
         nodew[:, 1] = node[:, 1] + u[1::3]
         nodew[:, 2] = node[:, 2] + u[2::3]
 
+        ax.axes.set_xlim3d(left=axislim[0], right=axislim[3]) 
+        ax.axes.set_ylim3d(bottom=axislim[1], top=axislim[4]) 
+        ax.axes.set_zlim3d(bottom=axislim[2], top=axislim[5])
+             
         if show_initial:
             plot_ori(ax, node, panel, trigl, fold_edge_style="-", edge_shade=0.3, panel_color=None)
         
@@ -162,10 +173,6 @@ def visual_fold(
             f2.canvas.draw() # draw
             f2.canvas.flush_events() # deal with resize
 
-            # ax.axes.set_xlim3d(left=axislim[0], right=axislim[1]) 
-            # ax.axes.set_ylim3d(bottom=axislim[2], top=axislim[3]) 
-            # ax.axes.set_zlim3d(bottom=axislim[4], top=axislim[5])
-             
             sleep(pause_time)
 
             if writer is not None:
