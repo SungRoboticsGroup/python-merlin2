@@ -10,10 +10,11 @@ def _get_panels(panel):
     if type(panel[0]) == list:
         len_func = np.vectorize(len)
         panelsize = len_func(panel)
-        panels = _nan(np.size(panel, 0), np.max(panelsize))
+        panels = np.empty((np.size(panel, 0), np.max(panelsize)), dtype=int)
         for i in range(np.size(panel, 0)):
             panels[i, : panelsize[i]] = panel[i]
-        return _get_panels(panels)
+            panels[i, panelsize[i] : ] = panel[i][0]
+        return panels
     else:
         return panel.astype(int)
     
@@ -86,7 +87,7 @@ def plot_ori(
     if type(face_vertex_color) == np.ndarray and np.size(face_vertex_color) != 0:
         if np.size(face_vertex_color, 0) == np.size(node, 0):
             # this is intended to replace interpolation
-            face_vertex_color = np.average(face_vertex_color[panel], 1)
+            face_vertex_color = np.average(face_vertex_color[panels], 1)
         panel_color = "flat"
     if edge_color.size == 0:
         if trigl.size != 0:

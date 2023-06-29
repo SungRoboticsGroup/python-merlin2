@@ -241,7 +241,7 @@ def _get_material(node, lst, indexctr, e, nv, t, fold, bend, bdry):
         else:
             inddd = np.array([])
         kpbj = np.empty((0,))
-        abarj = np.hstack([np.hstack([indfd + nb, inddd + nf + nb]).reshape(1, -1), a * np.ones((np.size(lst), 1))])
+        abarj = np.hstack([np.hstack([indfd + nb, inddd + nf + nb]).reshape(-1, 1), a * np.ones((np.size(lst), 1))])
 
     elif np.size(lst) == 4:
         _, indfd, efd = _intersect_2d(fold.astype(int), pairs.astype(int))
@@ -385,10 +385,14 @@ def _findfdbd(panel, bend):
     else:
         panel_size = (np.ones((np.size(panel, 0), 1)) * np.size(panel, 1)).astype(int)
     panels_3 = np.size(panel_size[panel_size == 3])
-    ptri = np.empty((panels_3, 1))
+    ptri = np.empty((panels_3, 3), dtype=object)
     flg = np.where(panel_size == 3)
     for i in range(panels_3):
-        ptri[i] = panel[flg[i]]
+        if type(panel[flg[i]][0]) == list:
+            ptri[i] = panel[flg[i]][0]
+        else:
+            ptri[i] = panel[flg[i]]
+    ptri = ptri.astype(int)
     trigl_raw = np.vstack([bend[:, [0, 2, 1]], ptri.reshape((-1, 3))])  # there's no way these share dimensions
     trigl_raw_sort = np.sort(trigl_raw, 1)
     trigl, uniqidx = np.unique(trigl_raw_sort, axis = 0, return_index = True)

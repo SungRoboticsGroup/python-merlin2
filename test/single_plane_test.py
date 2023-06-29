@@ -9,11 +9,20 @@ from src.post_process import post_process
 from src.visual_fold import visual_fold
 from src.plot_ori import plot_ori
 import matplotlib.pyplot as plt
+from src.util.save_data import save_object, load_object
 
 def test_single_plane(do_n4b5=False):
-    node = np.array([[0, 0, 0], [0, 10, 0], [12, 15, 0], [30, 10, 0], [30, 0, 0], [18, -5, 0]]) * 2
-    panel = np.empty((1,), dtype=object)
+    f = plt.figure()
+    ax = f.add_subplot(projection="3d")
+    node = np.array([[0, 0, 0], [0, 10, 0], [12, 15, 0], [30, 10, 0], [30, 0, 0], [18, -5, 0], [30,-5,0]]) * 2
+    ax.plot(node[:, 0], node[:, 1], node[:, 2], '.')
+    panel = np.empty((2,), dtype=object)
     panel[0] = list(range(6)) # important to make sure panel is in the right format
+    panel[1] = [4, 5, 6] # important to make sure panel is in the right format
+    ax.plot(node[[0,1,2,3,4,5,0], 0], node[[0,1,2,3,4,5,0], 1], node[[0,1,2,3,4,5,0], 2], "-")
+    ax.plot(node[[4, 5,6, 4], 0], node[[4, 5,6, 4], 1], node[[4, 5,6, 4], 2], "-")
+    plt.show()
+
 
     m = np.size(node, 0)
     supp = np.array([[0, 1, 1, 1], [1, 1, 0, 1], [3, 0, 0, 1]])
@@ -50,6 +59,9 @@ def test_single_plane(do_n4b5=False):
     u_his, f_his = path_analysis(truss, angles, analy_input_opt, False)
     u_his = np.real(u_his)
     f_his = np.real(f_his)
+
+    save_object("plane_test", (truss, angles, analy_input_opt, u_his, f_his))
+    truss, angles, analy_input_opt, u_his, f_his = load_object("plane_test")
 
     stat = post_process(u_his, truss, angles)
     instdof = np.array([5, -3])

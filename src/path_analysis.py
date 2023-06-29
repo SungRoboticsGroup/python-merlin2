@@ -103,12 +103,12 @@ def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOp
             fdsp = adl(node, u, 1) # Might need to be 0
         else: 
             raise ValueError()
-        imp_dofs = np.nonzero(fdsp)
+        imp_dofs = np.nonzero(fdsp)[0]
         free_dofs = np.setdiff1d(np.setdiff1d(range(3*np.size(node, 0)), fixed_dofs), imp_dofs)
         icrm = -1
         dspmvd = attmpts = 0
         mvstepsize = damping = 1
-        f_his = np.zeros((disp_step * 2, np.size(imp_dofs)))
+        f_his = np.zeros((disp_step, np.size(imp_dofs)))
         while (dspmvd <= 1 and (not stop(node, u, icrm)) and attmpts <= 20):
             icrm += 1
             # if icrm == np.size(u_his, 1):

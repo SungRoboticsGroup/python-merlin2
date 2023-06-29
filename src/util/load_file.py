@@ -4,6 +4,8 @@ from copy import deepcopy
 from ezdxf.filemanagement import readfile
 import matplotlib.pyplot as plt
 from typing import Tuple
+import os
+import xml.etree.ElementTree as ET
 
 def _vector_angle(a : NDArray, b : NDArray):
     """a, b are the endpoints of the vector"""
@@ -67,10 +69,11 @@ def _embedding_to_faces(g) -> NDArray:
     cw = []
     for face in faces:
         # find the bottom right vertex
+        fc = np.array(face)
         y_mins = np.where(vs[face, 1] == np.min(vs[face, 1]))[0]
-        min_pt = y_mins[np.argmax(vs[np.where(vs[face, 1] == np.min(vs[face, 1])), 0])]
+        min_pt = y_mins[np.argmax(vs[fc[y_mins], 0])]
 
-        a = vs[face[min_pt - 1 if min_pt > 0 else np.size(min_pt, 1)]] - vs[face[min_pt]]
+        a = vs[face[min_pt - 1 if min_pt > 0 else np.size(min_pt)]] - vs[face[min_pt]]
         b = vs[face[min_pt + 1 if min_pt < np.size(face) - 1 else 0]] - vs[face[min_pt]]
         if np.sign(np.cross(a, b)) < 0:
             cw.append(face[:-1])
@@ -119,12 +122,15 @@ def _convert_lines_to_graph(lines : list):
 
 def load_dxf(filename, visualize=False) -> Tuple[NDArray, NDArray]:
     """loads a dxf in as a planar unfolded pattern"""
+    if not os.path.exists(filename):
+        raise ValueError(f"File {filename} does not exist in the current directory {os.getcwd()}")
+
     doc = readfile(filename)
     msp = doc.modelspace()
     lines = []
     for e in msp:
         if e.dxftype() == "LWPOLYLINE":
-            lines += list(zip([i.dxf.start for i in e.virtual_entities()], [i.dxf.end for i in e.virtual_entities()])) # type: ignore
+            lines += list(zip([list(i.dxf.start) for i in e.virtual_entities()], [list(i.dxf.end) for i in e.virtual_entities()])) # type: ignore
     graph = _convert_lines_to_graph(lines)
     if visualize:
         for i in range(len(graph["adjacencies"])):     
@@ -136,7 +142,53 @@ def load_dxf(filename, visualize=False) -> Tuple[NDArray, NDArray]:
         plt.show()
     return np.hstack((graph["vertices"], np.zeros((np.size(graph["vertices"], 0), 1)))), _embedding_to_faces(graph)
 
+def load_svg(fp : str, visualize=False):
+    if not os.path.exists(fp):
+        raise ValueError(f"File {fp} does not exist in the current directory {os.getcwd()}")
     
+    lines = []
+    tree = ET.parse(fp)
+    root = tree.getroot()
+    for line in root:
+        if "line" in line.tag:
+            lines.append(([float(line.get("x1")), float(line.get("y1")), 0.0], [float(line.get("x2")), float(line.get("y2")), 0.0]))
+    graph = _convert_lines_to_graph(lines)
+    if visualize:
+        for i in range(len(graph["adjacencies"])):     
+            for j in graph["adjacencies"][i]: 
+                coords = np.vstack((graph["vertices"][i], graph["vertices"][j]))
+                plt.plot(coords[:, 0], coords[:, 1])
+        for i in range(len(graph["vertices"])):
+            plt.text(graph["vertices"][i][0], graph["vertices"][i][1], str(i))
+        plt.show()
+    return np.hstack((graph["vertices"], np.zeros((np.size(graph["vertices"], 0), 1)))), _embedding_to_faces(graph)
+
+
+def load_obj(fp : str):
+    if not os.path.exists(fp):
+        raise ValueError(f"File {fp} does not exist in the current directory {os.getcwd()}")
+
+    with open(fp, "r") as f:
+        node = []
+        panel = []
+
+        while True:
+            tline = f.readline()
+            if tline == "":
+                break
+            tline = tline[: -1]
+            ln = tline.split()[0]
+            if ln == "v":
+                node.append([f for f in tline.split(" ")[1 : ]])
+            elif ln == "f":
+                line = tline[2 : ]
+
+                allind = line.replace("/", " ").split()
+                nf = line.count("/", 0, line.index(" ")) + 1
+                panel.append([int(f) - 1 for f in allind[ : : nf]])
+
+    return np.array(node, dtype=float), np.array(panel, dtype=object)
+
 
 if __name__ == "__main__":
     # vs = np.array([[0, 0], [9, 5], [13, 10], [16, 4], [10, -5]])

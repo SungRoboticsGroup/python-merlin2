@@ -62,6 +62,9 @@ u_his, f_his = path_analysis(truss, angles, analy_input_opt, True)
 u_his = np.real(u_his)
 f_his = np.real(f_his)
 
+save_object("miura_test", (truss, angles, analy_input_opt, u_his, f_his))
+# truss, angles, analy_input_opt, u_his, f_his = load_object("miura_test")
+
 stat = post_process(u_his, truss, angles)
 
 instdof = np.array([indp, 2])

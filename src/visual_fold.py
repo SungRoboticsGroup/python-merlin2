@@ -8,7 +8,7 @@ from src.plot_ori import plot_ori, _get_panels
 from time import sleep
 from src.prepare_data import _nan
 
-mpl.use("Qt5agg")
+# mpl.use("Qt5agg")
 
 
 def visual_fold(
@@ -27,7 +27,7 @@ def visual_fold(
         view_angle = (35.0, 30.0)):
     node = truss["node"]
     trigl = truss["trigl"].astype(int)
-    panel = _get_panels(angles["panel"])
+    panel = angles["panel"]
     u_his = np.hstack((truss["u_0"], u_his))
     col_col = None
     v_intensity_data_inten_index = None
@@ -86,9 +86,9 @@ def visual_fold(
             lf_his = np.sum(lf_his, 1, keepdims=True)
     writer = None
     if record_type == "video":
-        writer = anim.FFMpegFileWriter(fps = 24)
+        writer = anim.FFMpegWriter(fps = 24)
     elif record_type == "imggif":
-        writer = anim.ImageMagickFileWriter(fps = 24) #TODO this may be wrong
+        writer = anim.ImageMagickWriter(fps = 24) #TODO this may be wrong
     else:
         print("Not recording")
     
