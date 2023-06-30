@@ -3,7 +3,6 @@ from src.util.dicts import Truss, Angles
 import numpy.typing as npt
 from typing import Tuple, Optional
 import numpy.matlib as npm
-import scipy.sparse as sp
 
 def _icross(a : npt.NDArray, b : npt.NDArray, cast_to_3d = False) -> npt.NDArray:
     if len(a.shape) == 3:
@@ -17,7 +16,7 @@ def _icross(a : npt.NDArray, b : npt.NDArray, cast_to_3d = False) -> npt.NDArray
         ))
     return a if not cast_to_3d else np.expand_dims(a, 2)
 
-def globalk_fast_ver(ui : npt.NDArray, node : npt.NDArray, truss : Truss, angles : Angles, incl_k : bool) -> Tuple[npt.NDArray, Optional[sp._csr.csr_matrix]]:
+def globalk_fast_ver(ui : npt.NDArray, node : npt.NDArray, truss : Truss, angles : Angles, incl_k : bool) -> Tuple[npt.NDArray, Optional[npt.NDArray]]:
     nn = np.size(node, 0)
     nodenw = np.zeros((nn, 3))
     nodenw[:, [0]] = node[:, [0]] + ui[ : : 3]
@@ -27,39 +26,38 @@ def globalk_fast_ver(ui : npt.NDArray, node : npt.NDArray, truss : Truss, angles
     e_dof_b = np.kron(truss.get("bars"), np.full((1, 3), 3)) + np.tile(np.array([0, 1, 2]), (np.size(truss["bars"], 0), 2))
     du = (ui[e_dof_b[:, : 3]] - ui[e_dof_b[:, 3 : 6]])[:, :, 0]
     b = truss.get("b")
-    assert type(b) == sp._csr.csr_matrix
-    ex = b.dot(ui) / truss.get("l") + 0.5 * (np.sum(np.power(du, 2), 1, keepdims=True) / np.power(truss["l"].reshape((-1, 1)), 2))
+    assert type(b) == np.ndarray
+    ex = (b @ ui) / truss.get("l") + 0.5 * (np.sum(np.power(du, 2), 1, keepdims=True) / np.power(truss["l"].reshape((-1, 1)), 2))
     cm = truss.get("cm")
     assert cm != None
     sx, et, _ = cm(ex, False)
     duelem = np.block([du, -du])
-    du = sp.csr_matrix((duelem.reshape((-1,), order="F"), (np.tile(np.arange(np.size(et)), (1, 6)).reshape((-1,)), e_dof_b.reshape((-1,), order="F"))), (np.size(et), np.size(ui)))
+    Du = np.zeros((np.size(et), np.size(ui)))
+    Du[np.tile(np.arange(np.size(et)), (1, 6)).reshape((-1,)), e_dof_b.reshape((-1,), order="F")] = duelem.reshape((-1,), order="F")
     fx = sx * truss.get("a")
-    IFb = (np.sum(truss.get("b").T.dot(fx), 1, keepdims=True) + np.sum(du.T.dot(fx / truss["l"]), 1, keepdims=True))
-    kel = truss.get("b").T.dot(
-        sp.csr_matrix((((et * truss.get("a")) / truss.get("l")).flatten(), (np.arange(np.size(et)), np.arange(np.size(et)))))
-                    ).dot(truss.get("b"))
+    IFb = (np.sum(truss.get("b").T.dot(fx), 1, keepdims=True) + np.sum(Du.T.dot(fx / truss["l"]), 1, keepdims=True))
+    tmp = np.zeros((np.size(et), np.size(et)))
+    tmp[np.arange(np.size(et)), np.arange(np.size(et))] = ((et * truss.get("a")) / truss.get("l")).flatten()
+    kel = truss.get("b").T @ tmp @ truss.get("b")
                     
+    t = np.zeros((np.size(et), np.size(et)))
+    t[np.arange(np.size(et)), np.arange(np.size(et))] = ((et * truss["a"]) / np.square(truss["l"])).flatten()
+    k1 = Du.T @ t @ truss["b"] + truss["b"].T @ t @ Du
+
+    u = np.zeros((np.size(et), np.size(et)))
+    u[np.arange(np.size(et)), np.arange(np.size(et))] = ((et * truss["a"]) / np.power(truss["l"], 3)).flatten()
+    k2 = Du.T @ u @ Du
     
-    k1 = du.T.dot(sp.csr_matrix((((et * truss["a"]) / np.square(truss["l"])).flatten(), (np.arange(np.size(et)), np.arange(np.size(et)))))
-        ).dot(truss["b"]) + truss["b"].T.dot(sp.csr_matrix((((et * truss["a"]) / np.square(truss["l"])).flatten(), (np.arange(np.size(et)), np.arange(np.size(et)))))
-        ).dot(du)
-    k2 = du.T.dot(sp.csr_matrix((((et * truss["a"]) / np.power(truss["l"], 3)).flatten(), (np.arange(np.size(et)), np.arange(np.size(et)))))
-        ).dot(du)
+    G = np.zeros((np.size(et), nn))
+    G[np.hstack([np.arange(np.size(et))] * 2), truss["bars"].reshape((-1,), order="F")] = np.vstack((np.ones((1, np.size(et))), -np.ones((1, np.size(et))))).flatten()
     
-    G = sp.csr_matrix(
-        (np.vstack((np.ones((1, np.size(et))), -np.ones((1, np.size(et))))).flatten(),
-        (np.hstack([np.arange(np.size(et))] * 2), truss["bars"].reshape((-1,), order="F"))),
-        (np.size(et),
-        nn)
-        )
-    
-    tmp = G.T.dot(G.multiply(fx / truss["l"])).toarray()
+    tmp = G.T @ (G * (fx / truss["l"]))
     ia, ja = np.nonzero(tmp)
     sa = np.asarray(tmp[tmp != 0])
     ik = 3 * ia.reshape((-1, 1)) + np.arange(3)
     jk = 3 * ja.reshape((-1, 1)) + np.arange(3)
-    kg = sp.csr_matrix((np.tile(sa, (1, 3)).flatten(), (ik.reshape((-1,), order="F"), jk.reshape((-1,), order="F"))), (3 * nn, 3 * nn))
+    kg = np.zeros((3*nn, 3*nn))
+    kg[ik.reshape((-1,), order="F"), jk.reshape((-1,), order="F")] = np.tile(sa, (1, 3)).flatten()
     kg = 0.5 * (kg + kg.T)
     Kb = (kel + k1 + k2) + kg
 
@@ -99,8 +97,9 @@ def globalk_fast_ver(ui : npt.NDArray, node : npt.NDArray, truss : Truss, angles
     dj = di * ((dt_rijrkj / rkj2) - 1) - dl * (dt_rklrkj / rkj2)
     dk = -di * (dt_rijrkj / rkj2) + dl * ((dt_rklrkj / rkj2) - 1)
     jhe_dense = np.vstack([dj, dk, di, dl])
-    jhe = sp.csr_matrix((jhe_dense.reshape((-1,), order="F"), (e_dof_d.reshape((-1,), order="F"), np.repeat(np.arange(np.size(he)), 12))), (np.size(ui), np.size(he)))
-    ifbf = np.sum(jhe * rspr, 1, keepdims=True)
+    jhe = np.zeros((np.size(ui), np.size(he)))
+    jhe[e_dof_d.reshape((-1,), order="F"), np.repeat(np.arange(np.size(he)), 12)] = jhe_dense.reshape((-1,), order="F")
+    ifbf = np.sum(jhe * rspr.T, 1, keepdims=True)
     IF = IFb + ifbf
 
     if incl_k:
@@ -194,10 +193,13 @@ def globalk_fast_ver(ui : npt.NDArray, node : npt.NDArray, truss : Truss, angles
         
         dof_ind1 = np.transpose(np.tile(np.expand_dims(e_dof_d, 2), (1, 1, 12)), (0, 2, 1))
         dof_ind2 = np.transpose(dof_ind1, (1, 0, 2))
-        kbf = sp.csr_matrix((khe_dense.flatten(order="F"), (dof_ind1.flatten(order="F"), dof_ind2.flatten(order="F"))), (3*nn, 3*nn))
+        kbf = np.zeros((3*nn, 3*nn))
+        np.add.at(kbf, (dof_ind1.flatten(order="F"), dof_ind2.flatten(order="F")), khe_dense.flatten(order="F"))
         k = Kb + kbf
         k = (k + k.T) / 2
-        k = k + sp.csr_matrix((np.full((3*nn,), 1e-8), (np.arange(3*nn), np.arange(3*nn))), (3*nn, 3*nn))
+        tmp = np.zeros((3*nn, 3*nn))
+        tmp[np.arange(3*nn), np.arange(3*nn)] = np.full((3*nn,), 1e-8)
+        k = k + tmp
         return IF, k
     else:
         return IF, None

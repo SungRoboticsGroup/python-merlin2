@@ -1,6 +1,5 @@
 import numpy.typing as npt
 from typing import Callable, NotRequired, Union, Tuple, Any, Optional, TypedDict
-import scipy.sparse as sp
 
 class AnalyInputOpt(TypedDict):
     model_type : NotRequired[str]   
@@ -28,7 +27,7 @@ class Truss(TypedDict):
     node : npt.NDArray
     bars : npt.NDArray
     trigl : npt.NDArray
-    b : sp.csr.csr_matrix
+    b : npt.NDArray
     l : npt.NDArray
     fixed_dofs : npt.NDArray
     cm : Callable[[Any, Any], Any]

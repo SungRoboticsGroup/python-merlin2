@@ -3,7 +3,6 @@ import numpy.typing as npt
 import numpy.matlib as npm
 from functools import partial
 from scipy.optimize import minimize, OptimizeResult
-from scipy.sparse import csr_matrix
 from typing import TypedDict, NotRequired, Callable, Any, Tuple, Union, Optional
 from src.util.fold_ke import fold_ke
 from src.util.ogden import ogden
@@ -495,13 +494,10 @@ def _direc3d(node, ele):
     D = np.vstack([node[ele[:, 1], 0] - node[ele[:, 0], 0], node[ele[:, 1], 1] - node[ele[:, 0], 1], node[ele[:, 1], 2] - node[ele[:, 0], 2]]).T
     L = np.sqrt(np.power(D[:, 0], 2) + np.power(D[:, 1], 2) + np.power(D[:, 2], 2))
     D = np.array([np.divide(D[:, 0], L), np.divide(D[:, 1], L), np.divide(D[:, 2], L)]).T
-    B = csr_matrix(
-        (np.block([D, -D]).flatten(),
-        (
-            npm.repmat(np.arange(ne).reshape(1, ne).T, 1, 6).flatten(), 
+    B = np.zeros((ne, 3 * nn))
+    B[npm.repmat(np.arange(ne).reshape(1, ne).T, 1, 6).flatten(), 
             np.array([3 * ele[:, 0] + 1 - 1, 3 * ele[:, 0] + 2- 1, 3 * ele[:, 0] + 3- 1, 3 * ele[:, 1] + 1- 1, 3 * ele[:, 1] + 2- 1, 3 * ele[:, 1] + 3- 1]).T.flatten()
-        )),
-        shape = (ne, 3 * nn))
+        ] = np.block([D, -D]).flatten()
     B = -B
     return B, L
 

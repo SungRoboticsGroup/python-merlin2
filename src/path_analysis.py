@@ -2,7 +2,6 @@ from prepare_data import Truss, Angles, AnalyInputOpt
 import numpy as np
 import numpy.typing as npt
 from src.util.globalk_fast_ver import globalk_fast_ver
-import scipy.sparse as sp
 
 def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOpt, do_prints : bool):
     
@@ -56,10 +55,10 @@ def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOp
                 while err > tol and iter < max_iter:
                     iter += 1
                     IF, K = globalk_fast_ver(u, node, truss, angles, True)
-                    assert type(K) == sp._csc.csc_matrix
+                    assert type(K) == npt.NDArray
                     R = lmd * F - IF
                     MRS = np.hstack((F, R))
-                    mul[free_dofs, :] = np.linalg.solve(K.toarray().astype(float)[np.ix_(free_dofs, free_dofs)], MRS.astype(float)[free_dofs])
+                    mul[free_dofs, :] = np.linalg.solve(K.astype(float)[np.ix_(free_dofs, free_dofs)], MRS.astype(float)[free_dofs])
                     d_up = mul[:, 0]
                     d_ur = mul[:, 1]
                     if iter == 0: d_ur *= 0
@@ -111,10 +110,10 @@ def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOp
         f_his = np.zeros((disp_step, np.size(imp_dofs)))
         while (dspmvd <= 1 and (not stop(node, u, icrm)) and attmpts <= 20):
             icrm += 1
-            # if icrm == np.size(u_his, 1):
-            #     u_his = np.hstack((u_his, np.zeros(u_his.shape)))
-            # if icrm == np.size(f_his, 0):
-            #     f_his = np.vstack((f_his, np.zeros(f_his.shape)))
+            if icrm == np.size(u_his, 1):
+                u_his = np.hstack((u_his, np.zeros(u_his.shape)))
+            if icrm == np.size(f_his, 0):
+                f_his = np.vstack((f_his, np.zeros(f_his.shape)))
             iter = -1
             err = 1
             if do_prints:
@@ -128,7 +127,7 @@ def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOp
                 IF, k = globalk_fast_ver(u, node, truss, angles, True)
                 assert k is not None
                 du = np.zeros((3 * np.size(node, 0), 1))
-                du[free_dofs] = np.linalg.solve(k.toarray()[np.ix_(free_dofs, free_dofs)], -IF[free_dofs])
+                du[free_dofs] = np.linalg.solve(k[np.ix_(free_dofs, free_dofs)], -IF[free_dofs])
                 err = np.linalg.norm(du[free_dofs])
                 u += damping * du
                 if do_prints:

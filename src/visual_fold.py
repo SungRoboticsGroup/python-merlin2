@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib import axes
 import matplotlib.animation as anim
 from mpl_toolkits.mplot3d.axes3d import Axes3D
-from src.plot_ori import plot_ori, _get_panels
+from src.plot_ori import plot_ori, _get_panels, clear_cache
 from time import sleep
 from src.prepare_data import _nan
 
@@ -33,6 +33,9 @@ def visual_fold(
     v_intensity_data_inten_index = None
     e_intensity_data_inten_index = None
     f_intensity_data_inten_index = None
+
+    clear_cache()
+
     if intensity_map == "vertex":
         if np.size(intensity_data) > 0 and np.min(intensity_data) >= 0:
             ng = 110
@@ -103,38 +106,46 @@ def visual_fold(
 
     ax : Axes3D.__class__ = f1.add_subplot(projection="3d")
     f1.show()
+
+    ax.axes.set_xlim3d(left=axislim[0], right=axislim[3]) 
+    ax.axes.set_ylim3d(bottom=axislim[1], top=axislim[4]) 
+    ax.axes.set_zlim3d(bottom=axislim[2], top=axislim[5])
+    ax.view_init(*view_angle)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    marker = None
+    
     #TODO: figure this out , position=100 + np.array([0, 0, 720, 500])
     for i in range(np.size(u_his, 1)):
         u = u_his[:, i]
-        ax.clear()
-        ax.view_init(*view_angle)
         nodew = node.copy()
         nodew[:, 0] = node[:, 0] + u[::3]
         nodew[:, 1] = node[:, 1] + u[1::3]
         nodew[:, 2] = node[:, 2] + u[2::3]
 
-        ax.axes.set_xlim3d(left=axislim[0], right=axislim[3]) 
-        ax.axes.set_ylim3d(bottom=axislim[1], top=axislim[4]) 
-        ax.axes.set_zlim3d(bottom=axislim[2], top=axislim[5])
              
         if show_initial:
-            plot_ori(ax, node, panel, trigl, fold_edge_style="-", edge_shade=0.3, panel_color=None)
+            plot_ori(ax, node, panel, trigl, fold_edge_style="-", edge_shade=0.3, panel_color=None, id = "init")
         
         if intensity_map == "vertex" and col_col is not None and v_intensity_data_inten_index is not None:
-            plot_ori(ax, nodew, panel, trigl, face_vertex_color=col_col[v_intensity_data_inten_index[:, i]])
+            plot_ori(ax, nodew, panel, trigl, face_vertex_color=col_col[v_intensity_data_inten_index[:, i]], id = "d")
         elif intensity_map == "edge" and col_col is not None and e_intensity_data_inten_index is not None:
-            plot_ori(ax, nodew, panel, trigl, edge_color=col_col[e_intensity_data_inten_index[:, i]], bars=truss["bars"], num_bend_hinge=np.size(angles["bend"], 0))
+            plot_ori(ax, nodew, panel, trigl, edge_color=col_col[e_intensity_data_inten_index[:, i]], bars=truss["bars"], num_bend_hinge=np.size(angles["bend"], 0), id = "d")
         elif intensity_map == "face" and col_col is not None and f_intensity_data_inten_index is not None:
-            plot_ori(ax, nodew, panel, trigl, face_vertex_color=col_col[f_intensity_data_inten_index[:, i]])
+            plot_ori(ax, nodew, panel, trigl, face_vertex_color=col_col[f_intensity_data_inten_index[:, i]], id = "d")
         else:
-            plot_ori(ax, nodew, panel, trigl)
+            plot_ori(ax, nodew, panel, trigl, id = "d")
     
         if use_lf:
-            ax.plot(nodew[instdof[0], 0], nodew[instdof[0], 1], nodew[instdof[0], 2], "rv", markeredgewidth=2, markersize=10)
-        #TODO: this has lighting in matlab
-        ax.set_aspect("equal")
-        ax.axis("off")
+            if marker is None:
+                marker = ax.plot(nodew[instdof[0], 0], nodew[instdof[0], 1], nodew[instdof[0], 2], "rv", markeredgewidth=2, markersize=10)
+                if type(marker) == list:
+                    marker = marker[0]
+            else:
+                marker.set_data_3d([nodew[instdof[0], 0]], [nodew[instdof[0], 1]], [nodew[instdof[0], 2]])
+
         # sleep(pause_time)
+        #TODO: add pause time back but make it based on a fps rather than pause per frame
         f1.canvas.draw() # draw
         f1.canvas.flush_events() # deal with resize
 

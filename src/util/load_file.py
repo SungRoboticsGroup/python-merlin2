@@ -151,7 +151,13 @@ def load_svg(fp : str, visualize=False):
     root = tree.getroot()
     for line in root:
         if "line" in line.tag:
-            lines.append(([float(line.get("x1")), float(line.get("y1")), 0.0], [float(line.get("x2")), float(line.get("y2")), 0.0]))
+            x1 = line.get("x1")
+            x2 = line.get("x2")
+            y1 = line.get("y1")
+            y2 = line.get("y2")
+            if x1 is None or x2 is None or y1 is None or y2 is None:
+                continue
+            lines.append(([float(x1), float(y1), 0.0], [float(x2), float(y2), 0.0]))
     graph = _convert_lines_to_graph(lines)
     if visualize:
         for i in range(len(graph["adjacencies"])):     
