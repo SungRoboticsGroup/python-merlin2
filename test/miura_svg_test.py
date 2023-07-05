@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from src.util.save_data import save_object, load_object
 import cProfile
 
-def square_twist_test(do_n4b5=False):
+def miura_svg_test(do_n4b5=False):
     # node, panel = load_svg("miura.svg", False)
     # m = np.size(node, 0)
     # supp = np.array([[5, 0, 1, 0], [8, 0, 1, 0], [4, 0, 1, 1], [14, 0, 1, 1], [22, 0, 1, 0]])
@@ -67,4 +67,4 @@ def square_twist_test(do_n4b5=False):
     plt.show()
 
 # cProfile.run("square_twist_test(False)", "stats2.prof")
-square_twist_test(False)
+miura_svg_test(False)

@@ -1,9 +1,8 @@
 from numpy.typing import NDArray
 import numpy as np
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 from src.prepare_data import _nan
-from matplotlib import tri
-from mpl_toolkits.mplot3d import axes3d
+from mpl_toolkits.mplot3d import axes3d, art3d
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 cache = {}
@@ -20,7 +19,7 @@ def _get_panels(panel):
     else:
         return panel.astype(int)
     
-def interpolate_face_colors(big_tri, small_tri, colors_big_tri):
+def _interpolate_face_colors(big_tri, small_tri, colors_big_tri):
     # find the center point of each small triangle, and find the closest large triangle point. 
     ctrs = np.average(small_tri, 1).reshape(-1, 3)
     max_bigtri = np.max(big_tri, 1).reshape(-1, 3)
@@ -55,7 +54,7 @@ def _plot_label(ax, prev = None, **kwargs):
         prev.set(**kwargs)
         return prev
     
-def _plot_plot(ax, prev = None, **kwargs):
+def _plot_plot(ax, prev = None, **kwargs) -> List[art3d.Line3D] :
     """Either creates a new text element or updates an existing one, which is much faster. The figure must still be flushed after doing this."""
     if prev is None:
         l = ax.plot(**kwargs)
@@ -65,7 +64,7 @@ def _plot_plot(ax, prev = None, **kwargs):
         prev.set_data_3d(kwargs["xs"], kwargs["ys"], kwargs["zs"])
         return prev
     
-def _get_prev(id, elem):
+def _get_prev(id, elem) -> List[art3d.Line3D] | None:
     if id is None:
         return None
     p = cache.get(id)
@@ -82,13 +81,15 @@ def _save_prev(id, elem, val):
             cache[id][elem] = val
 
 def clear_cache():
+    """Clears the cached animation values. This is automatically done in visual_fold, and shouldn't need to be accessed by the user.
+    """
     cache = {}
 
 def plot_ori(
         ax : axes3d.Axes3D.__class__, 
         node : NDArray, 
         panel : NDArray, 
-        trigl : NDArray, 
+        trigl : NDArray | None, 
         fold_edge_style : str = "-",
         edge_shade : float = 1,
         panel_color : Union[None, str] = "g",
@@ -100,7 +101,47 @@ def plot_ori(
         num_bend_hinge : int = 0,
         face_shade : bool = False,
         id : str | None = None
-    ):
+    ) -> None :
+    """This function generates origami renderings with various options. Among the inputs, Node and Panel are necessary. The following options are available:
+
+    Parameters
+    ----------
+    ax : axes3d.Axes3D.__class__
+        The 3d axes that the simulation should be rendered on. 
+    node : NDArray
+        The Nnode x 3 list of nodes
+    panel : NDArray
+        The Npanel x 3 list of panels
+    trigl : NDArray | None
+        The list of triangulated panels or None. If trigl is provided, the function will draw the triangulated origami model, which should be used for plotting deformed origami structures with bent panels.
+    fold_edge_style : str, optional
+        Matplotlib line style for the folding hinges, by default "-"
+    edge_shade : float, optional
+        A scalar between 0 and 1 that specifies the greyscale of edges in the plot. Use value 1 for black (default) and 0 for transparent, by default 1
+    panel_color : Union[None, str], optional
+        Specify a uniform colour for panels in any acceptable matplotlib color format, by default "g"
+    bend_edge_style : str | None, optional
+        Line style for the bending hinges. The default style is none, so that the origami plot does not display bending hinges. This property is only used when Trigl is provided, by default None
+    show_number : bool, optional
+        The plot_ori function shows the indices of nodes in the origami plot if this property is set to on. This is very helpful for specifying boundary conditions (i.e. Supp and Load). When this option is True, the panels are plotted without colour (transparent), by default False
+    face_vertex_color : NDArray[np.float64], optional
+        Face and vertex colours, specified as one colour per face, or one colour per vertex for interpolated face colour. For one colour per face, use an Nface × 3 array of RGB triplets, where Nf ace is the number of origami panels (panel) when trigl is not provided, or the number of triangles when trigl is provided. For interpolated face colour based on vertex values, provide an N'node ×3 array of RGB triplets, by default np.array([])
+    edge_color : NDArray[np.float64], optional
+        Colours for all bars in the bar-and-hinge model, specified as one colour per bar, including bending hinges, folding hinges, and boundary edges. Use an Nbar ×3 array of RGB triplets. To enable this property, connectivity of bar elements and Nbend needs to be specified. By default np.array([])
+    bars : NDArray[np.float64], optional
+        Pass in truss.bars if bars should be explicitly drawn, by default np.array([])
+    num_bend_hinge : int, optional
+        If bars is specified, the value of bending hinges should be specified here, by default 0
+    face_shade : bool, optional
+        Whether to shade the faces, by default False
+    id : str | None, optional
+        This field is used for animating with plot_ori. When an id is specified the objects that are drawn to ax are cached and their data is updated, rather than clearing ax and instantiating new surfaces every tick. This is significantly faster for animation, and care should be taken to ensure that unique ids are chosen OR clear_cache() is called to remove cached animation data. ax should not be cleared if animating. If None, then the drawing information will not be cached. By default None
+
+    Raises
+    ------
+    ValueError
+        If edge coloring is used without passing in triangulation info
+    """
 
     panels = _get_panels(panel)
     coords_tri = node[trigl]
@@ -122,7 +163,7 @@ def plot_ori(
             face_vertex_color = np.average(face_vertex_color[panels], 1)
         panel_color = "flat"
     if edge_color.size == 0:
-        if trigl.size != 0:
+        if trigl is not None and trigl.size != 0:
 
             p1 = p2 = None
 
@@ -145,11 +186,11 @@ def plot_ori(
                 p1 = _plot_3d(ax, _get_prev(id, "p1"), verts = coords_tri, shade=face_shade, **kwargs)
 
                 # TODO: refactor all facecolors to color
-            p1.set_sort_zpos(10)
+            p1.set_sort_zpos(10) # type: ignore
             _save_prev(id, "p1", p1)
 
 
-        if trigl.size != 0:
+        if trigl is not None and trigl.size != 0:
             p2 = _plot_3d(ax, _get_prev(id, "p2"), verts = coords_pan, facecolor=(0,0,0,0), linestyles=fold_edge_style, linewidths=1, edgecolors=np.full((1, 3), 1 - edge_shade), zorder = 0)
         else:
             if panel_color == "flat":
@@ -169,28 +210,30 @@ def plot_ori(
         _save_prev(id, "no_edge_labels", node_labels)
     
     else:
-        if trigl.size == 0:
+        if trigl is not None and trigl.size == 0:
             raise ValueError("Edge Coloring mode requires triangulation info")
         p3 = _plot_3d(ax, _get_prev(id, "p3"), verts = coords_pan, facecolor=tuple(0.85 for i in range(3)) + (0.8,), edgecolors=(0,0,0,0))
         _save_prev(id, "p3", p3)
 
         bend_lines = _get_prev(id, "bend_lines")
-        if bend_lines is None: bend_lines = [None for _ in range(num_bend_hinge)]
+        if bend_lines is None: 
+            bend_lines = [None for _ in range(num_bend_hinge)]
+
         for i in range(num_bend_hinge):
             xyz = np.hstack((node[bars[i, 0]], node[bars[i, 1]]))
-            bend_lines[i] = _plot_plot(ax, bend_lines[i], xs = xyz[[0,3]].T, ys = xyz[[1, 4]].T, zs = xyz[[2,5]].T, linestyle = ":", linewidth=1.5, color=edge_color[i], zorder = 5)
+            bend_lines[i] = _plot_plot(ax, bend_lines[i], xs = xyz[[0,3]].T, ys = xyz[[1, 4]].T, zs = xyz[[2,5]].T, linestyle = ":", linewidth=1.5, color=edge_color[i], zorder = 5) # type: ignore
             if type(bend_lines[i]) == list:
                 assert bend_lines[i] is not None
-                bend_lines[i] = bend_lines[i][0]
+                bend_lines[i] = bend_lines[i][0] # type: ignore
         _save_prev(id, "bend_lines", bend_lines)
 
-        bar_lines = _get_prev(id, "bar_lines")
+        bar_lines : List[art3d.Line3D] | List[None] | None = _get_prev(id, "bar_lines")
         if bar_lines is None: bar_lines = [None for _ in range(np.size(bars, 0))]
         for j in range(num_bend_hinge, np.size(bars, 0)):
             xyz = np.hstack((node[bars[j, 0]], node[bars[j, 1]]))
-            bar_lines[j - num_bend_hinge] = _plot_plot(ax, bar_lines[j - num_bend_hinge], xs = xyz[[0,3]].T, ys = xyz[[1, 4]].T, zs = xyz[[2,5]].T, linestyle = "-", linewidth=2, color=edge_color[j])
+            bar_lines[j - num_bend_hinge] = _plot_plot(ax, bar_lines[j - num_bend_hinge], xs = xyz[[0,3]].T, ys = xyz[[1, 4]].T, zs = xyz[[2,5]].T, linestyle = "-", linewidth=2, color=edge_color[j]) # type: ignore
             if type(bar_lines[j - num_bend_hinge]) == list:
-                    bar_lines[j - num_bend_hinge] = bar_lines[j - num_bend_hinge][0]
+                bar_lines[j - num_bend_hinge] = bar_lines[j - num_bend_hinge][0] # type: ignore
         _save_prev(id, "bar_lines", bar_lines)
     
     if show_number:

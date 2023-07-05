@@ -6,28 +6,65 @@ import matplotlib.animation as anim
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 from src.plot_ori import plot_ori, _get_panels, clear_cache
 from time import sleep
+import numpy.typing as npt
+from typing import Optional, Tuple
 from src.prepare_data import _nan
+from src.util.dicts import Truss, Angles
 
 # mpl.use("Qt5agg")
 
 
 def visual_fold(
-        u_his, 
-        truss, 
-        angles, 
-        lf_his, 
-        instdof, 
-        record_type=None, 
-        show_initial=True, 
-        filename="", 
-        pause_time = 0.0001, 
-        axislim = None,
-        intensity_map = "off",
-        intensity_data = np.array([]),
-        view_angle = (35.0, 30.0)):
+        u_his : npt.NDArray, 
+        truss : Truss, 
+        angles : Angles, 
+        instdof : npt.NDArray, 
+        lf_his : npt.NDArray | None = None, 
+        record_type : str | None =None, 
+        show_initial : bool =True, 
+        filename : str ="", 
+        pause_time : float = 0.0001, 
+        axislim : npt.NDArray | None = None,
+        intensity_map : str = "off",
+        intensity_data : npt.NDArray = np.array([]),
+        view_angle : Tuple[float, float] = (35.0, 30.0)):
+    """This function animates the numerical simulation
+
+    Parameters
+    ----------
+    u_his : npt.NDArray
+        the output of path_analysis
+    truss : Truss
+        the output of prepare_data
+    angles : Angles
+        the output of prepare_data
+    instdof : npt.NDArray
+        a 2 × 1 array that specifies the degree of freedom for displacement measure. The first entry stores the node being tracked, and the second entry is a signed integer defining the direction of nodal displacement to be monitored, for example, -2 indicates the minus z-direction and 1 indicates the positive y-direction.
+    lf_his : Optional[npt.NDArray]
+        Allows the VisualFold function to animate the load-displacement digram in accordance with the animation of deformation history. Should be the f_his output of path_analysis.
+    record_type : str | None, optional
+        The visual_fold function can record the animation in video format (MP4) or animated image format (GIF). Specify "video" or "imggif" for video recording or image recording, respectively. Note that exporting makes the animation significantly slower, and the program will likely hang for a minute or so afterwards to finish processing the output (time will vary based on number of increments and device, this is from a 200-increment simulation on a 2022 MacBook Pro). By default None.
+    show_initial : bool, optional
+        If True, the visual_fold function displays a grey-coloured wireframe of the initial configuration during the entire animation(s) of deformation history. By default True
+    filename : str, optional
+        A file name for the generated video or animated image, by default ""
+    pause_time : float, optional
+        _description_, by default 0.0001
+    axislim : npt.NDArray | None, optional
+        _description_, by default None
+    intensity_map : str, optional
+        This option enables the function to plot faces or edges in varying colours during the animation based on a physical measure specified in intensity_data. There are three choices: "vertex", "edge", and "face". This is useful for visualizing intensity of forces acting on nodes, strains in bars, or area change of triangulated panels. By default "off".
+    intensity_data : npt.NDArray, optional
+        A Nicrm-column array. Each column specifies a physical measure for all entities of a group (e.g. nodes, bars) in the origami model at one increment of simulation. Use a N'node × Nicrm array for intensity_map of "vertex", a Nbar ×Nicrm array for intensity_map of "edge", and a Nface ×Nicrm array for intensity_map of "face". By default np.array([])
+    view_angle : Tuple[float, float], optional
+        - View angle for the animation of origami structure, specified in [azimuth angle, elevation angle] format, by default (35.0, 30.0)
+    """
+
+
     node = truss["node"]
     trigl = truss["trigl"].astype(int)
     panel = angles["panel"]
+    assert truss["u_0"] is not None
     u_his = np.hstack((truss["u_0"], u_his))
     col_col = None
     v_intensity_data_inten_index = None
@@ -84,6 +121,7 @@ def visual_fold(
 
     use_lf = lf_his is not None and lf_his.size > 0
     if use_lf:
+        assert lf_his is not None
         lf_his = np.vstack((0 * lf_his[[0], :], lf_his))
         if np.size(lf_his, 1) > 1:
             lf_his = np.sum(lf_his, 1, keepdims=True)
@@ -173,6 +211,7 @@ def visual_fold(
 
         ax2 : axes.Axes = f2.add_subplot()
         f2.show()
+        assert lf_his is not None
         #TODO: figure this out , position=100 + np.array([0, 0, 720, 500])
         for i in range(np.size(lf_his, 1)):
             # ax.view_init(*view_angle)

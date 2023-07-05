@@ -120,10 +120,28 @@ def _convert_lines_to_graph(lines : list):
         "adjacencies": adj
             }
 
-def load_dxf(filename, visualize=False) -> Tuple[NDArray, NDArray]:
-    """loads a dxf in as a planar unfolded pattern"""
+def load_dxf(filename : str, visualize : bool =False) -> Tuple[NDArray, NDArray]:
+    """loads a dxf in as a planar unfolded pattern and returns the nodes and panels
+
+    Parameters
+    ----------
+    filename : str
+        The path to the dxf file
+    visualize : bool, optional
+        Shows a visualization of the pattern with numbered vertices once it's loaded. This can be useful for determining load and support conditions. By default False.
+
+    Returns
+    -------
+    Tuple[NDArray, NDArray]
+        Returns (node, panel) in a format that can be passed into prepare_data
+
+    Raises
+    ------
+    FileNotFoundError
+        If the dxf file is not found
+    """
     if not os.path.exists(filename):
-        raise ValueError(f"File {filename} does not exist in the current directory {os.getcwd()}")
+        raise FileNotFoundError(f"File {filename} does not exist in the current directory {os.getcwd()}")
 
     doc = readfile(filename)
     msp = doc.modelspace()
@@ -142,9 +160,28 @@ def load_dxf(filename, visualize=False) -> Tuple[NDArray, NDArray]:
         plt.show()
     return np.hstack((graph["vertices"], np.zeros((np.size(graph["vertices"], 0), 1)))), _embedding_to_faces(graph)
 
-def load_svg(fp : str, visualize=False):
+def load_svg(fp : str, visualize=False) -> Tuple[NDArray, NDArray]:
+    """Loads an svg file as an unfolded planar pattern and returns the nodes and panels
+
+    Parameters
+    ----------
+    fp : str
+        The path to the svg file
+    visualize : bool, optional
+        Shows a visualization of the svg with numbered vertices after loading it. This is useful for determining supp and load conditions. By default False.
+
+    Returns
+    -------
+    Tuple[NDArray, NDArray]
+        Returns a tuple of (node, panel), each of which can be passed directly into prepare_data
+
+    Raises
+    ------
+    FileNotFoundError
+        If the svg file is not found.
+    """
     if not os.path.exists(fp):
-        raise ValueError(f"File {fp} does not exist in the current directory {os.getcwd()}")
+        raise FileNotFoundError(f"File {fp} does not exist in the current directory {os.getcwd()}")
     
     lines = []
     tree = ET.parse(fp)
@@ -170,9 +207,26 @@ def load_svg(fp : str, visualize=False):
     return np.hstack((graph["vertices"], np.zeros((np.size(graph["vertices"], 0), 1)))), _embedding_to_faces(graph)
 
 
-def load_obj(fp : str):
+def load_obj(fp : str) -> Tuple[NDArray, NDArray]:
+    """Loads an obj file into the simulation
+
+    Parameters
+    ----------
+    fp : str
+        The path to the obj file
+
+    Returns
+    -------
+    Tuple[NDArray, NDArray]
+        Returns a tuple containing (nodes, panels) in a format that can be passed directly into prepare_data
+
+    Raises
+    ------
+    FileNotFoundError
+        If the obj file is not found
+    """
     if not os.path.exists(fp):
-        raise ValueError(f"File {fp} does not exist in the current directory {os.getcwd()}")
+        raise FileNotFoundError(f"File {fp} does not exist in the current directory {os.getcwd()}")
 
     with open(fp, "r") as f:
         node = []

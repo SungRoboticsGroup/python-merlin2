@@ -4,6 +4,41 @@ from src.util.dicts import Truss, Angles, Fold, Bend, Bar, Stat
 from src.util.fold_ke import fold_ke
 
 def post_process(u_his : npt.NDArray, truss : Truss, angles: Angles):
+    """This function computes physical measures for the bar-andhinge model based on the deformation history stored in u_his, such as strains of bar elements and system energies. 
+
+    Parameters
+    ----------
+    u_his : npt.NDArray
+        The u_his output from path_analysis
+    truss : Truss
+        The truss output from prepare_data
+    angles : Angles
+        The angles output from prepare_data
+
+    Returns
+    -------
+    stat : Stat
+        All measures are stored in a dict. A complete list of outputs are shown below:
+        \n1. bar : Bar - a dict containing nformation about bar elements at every increment: 
+            \na. Green-Lagrange strain (bar.ex)
+            \nb. 2nd PK stress (bar.sx)
+            \nc. Stored energy of each bar element (bar.us_i)
+            \nd. Total stored energy of bar elements (bar.us)
+        \nAttributes bar.ex, bar.sx, and bar.us_i are of size Nbar ×Nicrm. Attribute bar.us is a 1×Nicrm array.
+        \n2. fold : Fold - A dict containing information about folding rotational springs at every increment: 
+            \na. Folding angle (fold.angle)
+            \nb. Resistant moment (fold.rm)
+            \nc. Stored energy of each folding hinge (fold.uf_i)
+            \nd. Total stored energy of folding hinges (fold.uf).
+        \nAttributes fold.angle, fold.r_m, and fold.uf_i are of size Nf old × Nicrm. Attribute fold.uf is a 1×Nicrm array.
+        \n3. bend - Same as STAT.fold, but for bending rotational springs, which also has
+        4 attributes:
+            \na. bending angle (bend.angle)
+            \nb. resistant moment (bend.rm)
+            \nc. stored energy of each bending hinge (bend.ub_i)
+            \nd. total stored energy (bend.ub).
+        \n4. pe : npt.NDArray - Total potential energy of the origami structure, stored in a 1×Nicrm array
+    """
     ex_bar = np.zeros((np.size(truss["bars"], 0), np.size(u_his, 1)))
     fd_angle = np.zeros((np.size(angles["fold"], 0), np.size(u_his, 1)))
     bd_angle = np.zeros((np.size(angles["bend"], 0), np.size(u_his, 1)))

@@ -2,7 +2,7 @@ import numpy as np
 import numpy.typing as npt
 import numpy.matlib as npm
 from functools import partial
-from scipy.optimize import minimize, OptimizeResult
+from scipy.optimize import minimize, OptimizeResult # type: ignore
 from typing import TypedDict, NotRequired, Callable, Any, Tuple, Union, Optional
 from src.util.fold_ke import fold_ke
 from src.util.ogden import ogden
@@ -42,9 +42,84 @@ from src.util.dicts import *
 
 
 
-def prepare_data(node : npt.NDArray, panel : npt.NDArray, supp : npt.NDArray, load : npt.NDArray, analy_input_opt : AnalyInputOpt):
+def prepare_data(node : npt.NDArray, panel : npt.NDArray, supp : npt.NDArray, load : npt.NDArray, analy_input_opt : AnalyInputOpt) -> Tuple[Truss, Angles, AnalyInputOpt]:
+    """Prepares an origami pattern for simulation
+
+    Parameters
+    ----------
+    node : npt.NDArray
+        An nx3 array containing nodal coordinates for the orginial origami pattern before discretization
+    panel : npt.NDArray
+        Either an nxm array, with n panels and m nodes per panel, or an nx1 array containing lists,
+        where each list represents a panel. This format is necessary if not all panels are of the 
+        same size, and it can be created by explicitly setting the dtype to "object" when instantiating 
+        a non-homogenous numpy array. 
+        In either case, a panel is represented by a sequence of nodal indices from the node array, listed in CCW order.
+    supp : npt.NDArray
+        This is an nx4 array, where each row represents a support condition for a node. The first element of each row should
+        be the index of the node that it applies to, and the other three elements in that row represent freedom in the x, y, and z
+        directions respectively. The values can be either 0, representing unconstrained motion in one direction, or 1, representing
+        a node fixed on that axis. All nodes are assumed to be unconstrained in all axes by default, and only need to be specified if
+        they're constrained on one or more axes.
+    load : npt.NDArray
+        This is structured identically to the supp array, but the last three arguments of every row represent either the load or displacement
+        of that node on the x, y, and z axes respectively, depending whether the simulation is set to force or displacement mode.
+    analy_input_opt : AnalyInputOpt
+        This is a dictionary in which various simulation options can be specified.
+        \n1. model_type - This parameter specifies the discretization scheme. The valid options are "n4b5" and "n5b8". The N5B8 discretization scheme is highly recommended, since the N4B5 scheme has a high chance of failing to correctly discretize the shape and is also generally less accurate for simulation.
+        \n2. mater_calib - This parameter specifies the calibration method for elemental constitutive behaviour. The user chooses between manual and auto mode. In the manual mode, the constitutive models involved in a bar-and-hinge model need to be specified explicitly using the input fields: bar_cm, rot_spr_bend, rot_spr_fold, a_bar, K_b, and K_f. In the auto mode, the constitutive models are specified implicitly based on actual material properties using the formulas defined in [Filipov et al. 17]. The following input fields are required: mod_elastic, poisson, thickness, and l_scale_factor. The auto mode only applies to N5B8 models.
+        \n3. bar_cm - This is a function that defines the constitutive model for bar elements in the following format: Sx,Ct,W = bar_cm(Ex, incl_w). The inputs are the Green-Lagrange strain Exx (Ex) and incl_w, which allows the user to optionally include w or not (if False, None should be returned in place of W), and the three outputs are the 2nd PK stress Sxx (Sx), tangent modulus C (Ct), and strain energy density W (W). The default function is a hyper elastic model (@Ogden) as reported in [Liu and Paulino 17]. To customize, one can write a separate function and pass a function handle to this parameter. 
+        \n4. rot_spr_bend - This is a function that defines the constitutive model for bending rotational spring elements in the following format: M,k,P = rot_spr_bend(he,h0,Kp,L0, incl_p). The five inputs are: deformed bending angles θ (he), neutral angles θ0 (h0), stiffness parameter(s) that may differ for each element (Kp), hinge lengths L (Lo), and incl_p, which determines whether P is calculated and returned (if False, None should be returned in place of P). The three outputs shall be resistant moment M (M), tangent rotational modulus k (k), and stored energy ψ (P). Input and output values (except for K_p) are all Nbend×1 arrays, where Nbend denotes the total number of bending hinges. The default function implements an enhanced linear elastic model [Liu and Paulino 17] (@EnhancedLinear) in the manual mode, and a super-linear model [Filipov et al. 17] (@SuperLinearBend) in the auto mode.
+        \n5. rot_spr_fold - This function specifies the constitutive model for folding rotational spring elements, following the same format as rot_spr_bend, except that the size of input and output arrays shall be Nf old ×1, where Nf old denotes the total number of folding hinges. The default function is the enhanced linear elastic model (@EnhancedLinear) in both manual and auto modes.
+        \n6. 6. a_bar - Areas of bar elements, which could either be a scalar (for uniform area) or a Nbar ×1 array where Nbar denotes the total number of bar elements in the bar-and-hinge model. This is only used in manual mode.
+        \n7. K_b - Stiffness parameters for bending rotational spring elements, which could either be a 1×m array (for uniform property) or a Nbend ×m array, where m is the number of required stiffness parameters, which typically equals 1. This is the input Kp for rot_spr_bend.
+        \n8. K_f - Stiffness parameters for folding rotational spring elements, following the same format as Kb. This is the input Kp for rot_spr_fold.
+        \n9. mod_elastic - Modulus of elasticity E (or Young’s modulus) of the material of the origami structure. This parameter is used in the auto mode.
+        \n10. poisson - Poisson’s ratio ν of the material, used in the auto mode.
+        \n11. thickness - Thickness t of the origami panels, used in the auto mode.
+        \n12. l_scale_factor - Ratio of length scale factor L∗/LF, where LF is the length ofa folding hinge and L∗ is the length scale factor defined in [Filipov et al. 17]. This parameter is used to determine the rotational modulus of folding rotational springs, used in the auto mode. Typical values of L∗/LF is between 1 to 5. The default value is 3.
+        \n13. zero_bend - This parameter specifies the neutral angles of bending hinges. User can choose between "flat" and "as_is", or specify user-defined values. This is useful when the initial configuration involves bended panels. The option "as_is" uses the bended shapes of panels as their undeformed states; while the option "flat" always assumes that the neutral angles of bending hinges are π (referring to flat panels). When specifying user-defined values, we use a scalar for uniform neutral angles and a Nbend ×1 array for non-uniform neutral angles.
+        \n14. load_type - User can choose between "force" and "displacement".
+        \n15. load - In Force mode, the actual applied loads are multiples of the specified load, the scalar multipliers (known as load factor) is determined automatically by a numerical continuation algorithm [Leon et al. 14]. In Displacement mode, the solver attempts the specified amount of displacements in an incremental manner, and stops when the specified amount of displacements is achieved.
+        \n16. adaptive_load - This is a function that specifies an adaptive load in the following format: f = load_fun(Node,U,icrm). The inputs are initial nodal coordinates (Node), displacement vector (U), and incremental number (icrm), which can be regarded as pseudo-time. The output is the load vector, which can be either Force or Displacement, but each entry must corresponds to the same degree of freedom as in U. In Displacement mode, the size of each incremental step must be considered within the function. Once specified, the adaptive_load overrides Load.
+        \n17. initial_load_factor - Initial load factor for the numerical continuation algorithm [Liu and Paulino 17,Leon et al. 14], used in Force mode.
+        \n18. max_incr - Maximum number of increments (Nicrm) for the numerical continuation algorithm, used in Force mode.
+        \n19. disp_step - Number of incremental steps to achieve a Displacement load.
+        \n20. stop_criterion - A function that specifies a stopping criterion for the numerical simulation based on configurational changes of the origami structure. Use the following format: flag = stop_criterion(node,u,icrm). The function returns 1 when the stopping criterion is met; otherwise the function should return 0.
+
+
+    Returns
+    -------
+    truss : Truss
+        truss is a dict with the following fields:
+        \n1. node - This is a three-column array of size N'node × 3 in the same format as node, but contains additional Steiner points for generalized N5B8 models.
+        \n2. bars - Connectivity information of bar elements stored in a Nbar ×2 array. The two entries in a row refer to the indices of the two end nodes of a bar element.
+        \n3. trigl - Triangulation information stored in a Ntri ×3 array, where Ntri equals the total number of triangles in the bar-and-hinge model after discretization. The three entries in a row are vertex indices of each triangle.
+        \n4. b - Compatibility matrix of the bar frame [Filipov et al. 17] of size Nbar ×Ndof, where Ndof is the total number of degrees of freedom in the system (= 3N'node).
+        \n5. l - Initial lengths of bar elements stored in a Nbar ×1 array.
+        \n6. fixed_dofs - Indices of fixed degrees of freedom specified by supp.
+        \n7. cm - Constitutive model for bar elements, passed from AnalyInputOpt.bar_cm.
+        \n8. a - Member areas of bar elements stored in a Nbar ×1 array.
+        \n9. u_0 - Initial displacement referring to the unformed configuration. Most of the time, the initial configuration of a structure in a simulation is the undeformed configuration, thus U0 is a Ndof ×1 array of zeros. This parameter is specified outside the PrepareData function, but before the PathAnalysis function is executed. If not specified, the PathAnalysis function assigns truss.u_0 a vector of zeros.
+    angles : Angles
+        angles is a dict with the following fields:
+        \n1. Panel - Same as the aforementioned input parameter Panel.
+        \n2. fold - A Nfold × 4 array that contains indices of associated nodes of folding rotational springs. The first two entries define the rotation axis, and the later two refer to off-axis points of the two adjacent triangles in a rotational spring element. See [Liu and Paulino 16] for examples.
+        \n3. bend - A Nbend × 4 array that contains indices of associated nodes of bending rotational springs, in the same format as angles.fold.
+        \n4. pf_0 - Neutral angles of folding rotational springs stored in a Nfold ×1 array.
+        \n5. pb_0 - Neutral angles of bending rotational springs stored in a Nbend ×1 array.
+        \n6. cm_bend - Same as AnalyInputOpt.rot_spr_bend.
+        \n7. cm_fold - Same as AnalyInputOpt.rot_spr_fold.
+        \n8. k_b - Stiffness parameters for bending rotational springs specified for each element in an array of Nbend rows.
+        \n9. k_f - Stiffness parameters for folding rotational springs specified for each element in an array of Nf old rows.
+    analy_input_opt : AnalyInputOpt
+        Returns a populated version of the analy_input_opt argument. This has the same fields as listed above.
+
+    Raises
+    ------
+    ValueError
+        If an incorrect input is given
     """
-    Load must be a 2d array of ints"""
     put_opt = partial(_put_if_none, analy_input_opt)
     get_opt = partial(_get_or_default, analy_input_opt)
     put_opt("stop_criterion", lambda a, b, c: False)

@@ -1,9 +1,35 @@
 from prepare_data import Truss, Angles, AnalyInputOpt
 import numpy as np
 import numpy.typing as npt
+from typing import Tuple
 from src.util.globalk_fast_ver import globalk_fast_ver
 
-def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOpt, do_prints : bool):
+def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOpt, do_prints : bool) -> Tuple[npt.NDArray, npt.NDArray]:
+    """Performs a simulation of the origami structure with the given inputs
+
+    Parameters
+    ----------
+    truss : Truss
+        The truss ouput of prepare_data. The u_0 field, which defines displacements for the initial simulation state, can also be populated, and this is not done in prepare_data.
+    angles : Angles
+        The angles output of prepare_data.
+    analy_input_opt : AnalyInputOpt
+        The analy_input_opt output of prepare data
+    do_prints : bool
+        If true, the current increment, iteration, and error of the simulation will be printed to the console at every step. Otherwise, no outputs will be printed
+
+    Returns
+    -------
+    Tuple[npt.NDArray, npt.NDArray]
+        This is a tuple containing u_his and f_his.
+        1. u_his - History of nodal displacements at the end of each increment, stored in a Ndof ×Nicrm array.
+        2. f_his - In Force mode, this is a Nicrm × 1 array that stores the values of load factors at the end of each increment. In Displacement mode, this is a Nicrm × Ndisp array, whose columns store the negative values of the resistant forces in the degrees of freedom that are imposed with displacement loads, where Ndisp is the number of imposed degrees of freedom.
+
+    Raises
+    ------
+    ValueError
+        If an illegal value is passed in, this will be raised
+    """
     
     tol = 1e-6
     max_iter = 50
