@@ -9,35 +9,38 @@ from src.post_process import post_process
 from src.visual_fold import visual_fold
 from src.plot_ori import plot_ori
 from src.util.load_file import load_svg
+from src.util.write_file import write_to_obj
 import matplotlib.pyplot as plt
 from src.util.save_data import save_object, load_object
 import cProfile
 
 def miura_svg_test(do_n4b5=False):
-    # node, panel = load_svg("miura.svg", False)
-    # m = np.size(node, 0)
-    # supp = np.array([[5, 0, 1, 0], [8, 0, 1, 0], [4, 0, 1, 1], [14, 0, 1, 1], [22, 0, 1, 0]])
-    # load = np.array([[22, 0, 0, 100], [5, 0, 0, 100], [8, 0, 0, 100]], dtype=float)
+    node, panel = load_svg("miura.svg", False)
+    m = np.size(node, 0)
+    supp = np.array([[5, 0, 1, 0], [8, 0, 1, 0], [4, 0, 1, 1], [14, 0, 1, 1], [22, 0, 1, 0]])
+    load = np.array([[22, 0, 0, 100], [5, 0, 0, 100], [8, 0, 0, 100]], dtype=float)
 
 
-    # analy_input_opt : AnalyInputOpt = {}
-    # analy_input_opt["model_type"] = "N5B8"
-    # analy_input_opt["mater_calib"] = "auto"
-    # analy_input_opt["mod_elastic"] = 1e3
-    # analy_input_opt["poisson"] = 0.3
-    # analy_input_opt["thickness"] = 0.25
-    # analy_input_opt["l_scale_factor"] = 2
-    # analy_input_opt["load_type"] = "displacement"
-    # analy_input_opt["disp_step"] = 200
+    analy_input_opt : AnalyInputOpt = {}
+    analy_input_opt["model_type"] = "N5B8"
+    analy_input_opt["mater_calib"] = "auto"
+    analy_input_opt["mod_elastic"] = 1e3
+    analy_input_opt["poisson"] = 0.3
+    analy_input_opt["thickness"] = 0.25
+    analy_input_opt["l_scale_factor"] = 2
+    analy_input_opt["load_type"] = "displacement"
+    analy_input_opt["disp_step"] = 200
     
     
-    # truss, angles, analy_input_opt = prepare_data(node, panel, supp, load, analy_input_opt)
-    # truss["u_0"] = np.zeros((3 * np.size(truss["node"], 0), 1))
-    # u_his, f_his = path_analysis(truss, angles, analy_input_opt, True)
-    # u_his = np.real(u_his)
-    # f_his = np.real(f_his)
+    truss, angles, analy_input_opt = prepare_data(node, panel, supp, load, analy_input_opt)
 
-    # save_object("miura_svg_test", (truss, angles, analy_input_opt, u_his, f_his))
+    write_to_obj("test.obj", node, panel.astype(int))
+    truss["u_0"] = np.zeros((3 * np.size(truss["node"], 0), 1))
+    u_his, f_his = path_analysis(truss, angles, analy_input_opt, True)
+    u_his = np.real(u_his)
+    f_his = np.real(f_his)
+
+    save_object("miura_svg_test", (truss, angles, analy_input_opt, u_his, f_his))
     truss, angles, analy_input_opt, u_his, f_his = load_object("miura_svg_test")
     stat = post_process(u_his, truss, angles)
 
