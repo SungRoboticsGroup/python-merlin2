@@ -56,6 +56,7 @@ def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOp
         b_lambda = analy_input_opt.get("initial_load_factor")
         assert type(b_lambda) == float or type(b_lambda) == int
         u_his = np.zeros((3 * np.size(node, 0), max_icr))
+        u_his[:, 0] = u
 
         free_dofs = np.setdiff1d(np.arange(3 * np.size(node, 0)), fixed_dofs)
         lmd = 0
@@ -120,6 +121,7 @@ def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOp
         disp_step = analy_input_opt.get("disp_step")
         assert type(disp_step) == int
         u_his = np.zeros((3 * np.size(node, 0), disp_step * 2))
+        u_his[:, 0] = u
         ld = analy_input_opt.get("load")
         adl = analy_input_opt.get("adaptive_load")
         if ld is not None:
