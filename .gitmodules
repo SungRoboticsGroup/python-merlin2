@@ -1,0 +1,3 @@
+[submodule "origami-io"]
+	path = origami_io
+	url = https://github.com/SungRoboticsGroup/origami-io.git
