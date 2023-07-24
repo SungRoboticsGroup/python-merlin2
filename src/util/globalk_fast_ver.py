@@ -1,5 +1,5 @@
 import numpy as np
-from src.util.dicts import Truss, Angles
+from .dicts import Truss, Angles
 import numpy.typing as npt
 from typing import Tuple, Optional
 import numpy.matlib as npm

@@ -17,7 +17,7 @@ class AnalyInputOpt(TypedDict):
     zero_bend : NotRequired[Union[str, float, npt.NDArray]]
     load_type : NotRequired[str]
     load : NotRequired[npt.NDArray]
-    adaptive_load : NotRequired[Callable[[npt.NDArray, npt.NDArray, float], npt.NDArray]]
+    adaptive_load : NotRequired[Callable[[npt.NDArray, npt.NDArray, int], npt.NDArray]]
     initial_load_factor : NotRequired[float]
     max_incr : NotRequired[int]
     disp_step : NotRequired[int]
@@ -42,7 +42,7 @@ class Angles(TypedDict):
     pb_0 : npt.NDArray
     cm_bend : Callable[[npt.NDArray, npt.NDArray, Any, npt.NDArray, bool], Tuple[npt.NDArray, npt.NDArray, Optional[npt.NDArray]]]
     cm_fold : Callable[[npt.NDArray, npt.NDArray, Any, npt.NDArray, bool], Tuple[npt.NDArray, npt.NDArray, Optional[npt.NDArray]]]
-    k_b : npt.NDArray
+    k_b : npt.NDArray | None
     k_f : npt.NDArray  
 
 

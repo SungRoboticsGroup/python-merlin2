@@ -4,12 +4,12 @@ import matplotlib.pyplot as plt
 from matplotlib import axes
 import matplotlib.animation as anim
 from mpl_toolkits.mplot3d.axes3d import Axes3D
-from src.plot_ori import plot_ori, _get_panels, clear_cache
+from .plot_ori import plot_ori, _get_panels, clear_cache
 from time import sleep
 import numpy.typing as npt
 from typing import Optional, Tuple
-from src.prepare_data import _nan
-from src.util.dicts import Truss, Angles
+from .prepare_data import _nan
+from .util.dicts import Truss, Angles
 
 # mpl.use("Qt5agg")
 
@@ -64,8 +64,6 @@ def visual_fold(
     node = truss["node"]
     trigl = truss["trigl"].astype(int)
     panel = angles["panel"]
-    assert truss["u_0"] is not None
-    u_his = np.hstack((truss["u_0"], u_his))
     col_col = None
     v_intensity_data_inten_index = None
     e_intensity_data_inten_index = None
@@ -122,7 +120,7 @@ def visual_fold(
     use_lf = lf_his is not None and lf_his.size > 0
     if use_lf:
         assert lf_his is not None
-        lf_his = np.vstack((0 * lf_his[[0], :], lf_his))
+        lf_his = np.vstack((0 * lf_his[[0]], lf_his))
         if np.size(lf_his, 1) > 1:
             lf_his = np.sum(lf_his, 1, keepdims=True)
     writer = None

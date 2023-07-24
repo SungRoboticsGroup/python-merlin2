@@ -1,15 +1,15 @@
 import numpy as np
-from src.util.dicts import AnalyInputOpt
-from src.util.ogden import ogden
-from src.util.super_linear_bend import super_linear_bend
-from src.util.enhanced_linear import enhanced_linear
-from src.prepare_data import prepare_data
-from src.path_analysis import path_analysis
-from src.post_process import post_process
-from src.visual_fold import visual_fold
-from src.plot_ori import plot_ori
+from ..src.util.dicts import AnalyInputOpt
+from ..src.util.ogden import ogden
+from ..src.util.super_linear_bend import super_linear_bend
+from ..src.util.enhanced_linear import enhanced_linear
+from ..src.prepare_data import prepare_data
+from ..src.path_analysis import path_analysis
+from ..src.post_process import post_process
+from ..src.visual_fold import visual_fold
+from ..src.plot_ori import plot_ori
 import matplotlib.pyplot as plt
-from src.util.save_data import save_object, load_object
+from ..src.util.save_data import save_object, load_object
 
 def test_single_plane(do_n4b5=False):
     f = plt.figure()

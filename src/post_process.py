@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.typing as npt
-from src.util.dicts import Truss, Angles, Fold, Bend, Bar, Stat
-from src.util.fold_ke import fold_ke
+from .util.dicts import Truss, Angles, Fold, Bend, Bar, Stat
+from .util.fold_ke import fold_ke
 
 def post_process(u_his : npt.NDArray, truss : Truss, angles: Angles):
     """This function computes physical measures for the bar-andhinge model based on the deformation history stored in u_his, such as strains of bar elements and system energies. 

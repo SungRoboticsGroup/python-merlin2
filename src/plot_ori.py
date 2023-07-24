@@ -1,7 +1,7 @@
 from numpy.typing import NDArray
 import numpy as np
 from typing import Union, Tuple, List
-from src.prepare_data import _nan
+from .prepare_data import _nan
 from mpl_toolkits.mplot3d import axes3d, art3d
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
@@ -205,7 +205,7 @@ def plot_ori(
         if node_labels is None: node_labels = [None for _ in range(np.size(node))]
         if show_number:
             for i in range(np.size(node, 0)):
-                node_labels[i] = _plot_label(ax, node_labels[i], x = node[i, 0] + 0.1, y = node[i, 1] - 0.1, z = node[i, 2], text = str(i), fontsize = 14)
+                node_labels[i] = _plot_label(ax, node_labels[i], x = node[i, 0] * 1.05, y = node[i, 1] * 0.95, z = node[i, 2], s = str(i), fontsize = 14)
 
         _save_prev(id, "no_edge_labels", node_labels)
     

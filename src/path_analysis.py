@@ -1,8 +1,8 @@
-from prepare_data import Truss, Angles, AnalyInputOpt
+from .prepare_data import Truss, Angles, AnalyInputOpt
 import numpy as np
 import numpy.typing as npt
 from typing import Tuple
-from src.util.globalk_fast_ver import globalk_fast_ver
+from .util.globalk_fast_ver import globalk_fast_ver
 
 def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOpt, do_prints : bool) -> Tuple[npt.NDArray, npt.NDArray]:
     """Performs a simulation of the origami structure with the given inputs
@@ -76,16 +76,16 @@ def path_analysis(truss : Truss, angles : Angles, analy_input_opt : AnalyInputOp
                     print(f"icrm = {icrm}, lambda = {lmd:6.4f}")
                 ad = analy_input_opt.get("adaptive_load")
                 if ad != None:
-                    F = ad(node, u, icrm)
+                    F = ad(node, u, icrm).reshape(-1, 1)
                 if F is None:
                     raise ValueError()
                 while err > tol and iter < max_iter:
                     iter += 1
                     IF, K = globalk_fast_ver(u, node, truss, angles, True)
-                    assert type(K) == npt.NDArray
+                    assert type(K) == np.ndarray
                     R = lmd * F - IF
                     MRS = np.hstack((F, R))
-                    mul[free_dofs, :] = np.linalg.solve(K.astype(float)[np.ix_(free_dofs, free_dofs)], MRS.astype(float)[free_dofs])
+                    mul[free_dofs, :] = np.linalg.lstsq(K.astype(float)[np.ix_(free_dofs, free_dofs)], MRS.astype(float)[free_dofs])[0]
                     d_up = mul[:, 0]
                     d_ur = mul[:, 1]
                     if iter == 0: d_ur *= 0

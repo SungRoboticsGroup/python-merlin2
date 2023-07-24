@@ -4,42 +4,12 @@ import numpy.matlib as npm
 from functools import partial
 from scipy.optimize import minimize, OptimizeResult # type: ignore
 from typing import TypedDict, NotRequired, Callable, Any, Tuple, Union, Optional
-from src.util.fold_ke import fold_ke
-from src.util.ogden import ogden
-from src.util.enhanced_linear import enhanced_linear
-from src.util.super_linear_bend import super_linear_bend
-from src.util.globalk_fast_ver import globalk_fast_ver
-from src.util.dicts import *
-
-# TODO: Find out if bar_cm should have just an NDArray instead
-
-
-
-# analy_input_opt contains the following fields:
-#     'ModelType': 'N4B5' or 'N5B8'
-#     'MaterCalib': 'auto' or 'manual'
-#     'BarCM': Constitutive model of bar elements
-#     'Abar': Area of bars (manual mode)
-#     'RotSprBend': Constitutive model of bending elements (manual mode)
-#     'RotSprFold': Constitutive model of folding elements (manual mode)
-#     'Kb': Initial modulus of bending hinges
-#     'Kf': Initial modulus of folding hinges
-#     'ModElastic': Modulus of Elasticy of bar material
-#     'Poisson': Poisson's ratio
-#     'Thickness': Panel thickness
-#     'LScaleFactor': Ratio of length scale factor (Ls) over hinge length LF
-#     'ZeroBend': 'AsIs' - as the geometry is defined, 
-#                 'Flat' - enforce neutral angle at pi (flat configuration)
-#                  value - provide specific values, scalar for uniform
-#                  assignment, vector for differential assignment 
-#     'LoadType': 'Force' or 'Displacement'
-#     'Load': Loading condition
-#     'AdaptiveLoad': Function handle for adaptive loading
-#     'InitialLoadFactor': Initial load factor for MGDCM ('Force' mode)
-#     'MaxIcr': Maximum number of increments ('Force' mode)
-#     'DispStep': Number of displacement increments ('Displacement' mode)
-#     'StopCriterion': Function handle for specific stopping criterion.
-
+from .util.fold_ke import fold_ke
+from .util.ogden import ogden
+from .util.enhanced_linear import enhanced_linear
+from .util.super_linear_bend import super_linear_bend
+from .util.globalk_fast_ver import globalk_fast_ver
+from .util.dicts import *
 
 
 def prepare_data(node : npt.NDArray, panel : npt.NDArray, supp : npt.NDArray, load : npt.NDArray, analy_input_opt : AnalyInputOpt) -> Tuple[Truss, Angles, AnalyInputOpt]:
@@ -71,7 +41,7 @@ def prepare_data(node : npt.NDArray, panel : npt.NDArray, supp : npt.NDArray, lo
         \n3. bar_cm - This is a function that defines the constitutive model for bar elements in the following format: Sx,Ct,W = bar_cm(Ex, incl_w). The inputs are the Green-Lagrange strain Exx (Ex) and incl_w, which allows the user to optionally include w or not (if False, None should be returned in place of W), and the three outputs are the 2nd PK stress Sxx (Sx), tangent modulus C (Ct), and strain energy density W (W). The default function is a hyper elastic model (@Ogden) as reported in [Liu and Paulino 17]. To customize, one can write a separate function and pass a function handle to this parameter. 
         \n4. rot_spr_bend - This is a function that defines the constitutive model for bending rotational spring elements in the following format: M,k,P = rot_spr_bend(he,h0,Kp,L0, incl_p). The five inputs are: deformed bending angles θ (he), neutral angles θ0 (h0), stiffness parameter(s) that may differ for each element (Kp), hinge lengths L (Lo), and incl_p, which determines whether P is calculated and returned (if False, None should be returned in place of P). The three outputs shall be resistant moment M (M), tangent rotational modulus k (k), and stored energy ψ (P). Input and output values (except for K_p) are all Nbend×1 arrays, where Nbend denotes the total number of bending hinges. The default function implements an enhanced linear elastic model [Liu and Paulino 17] (@EnhancedLinear) in the manual mode, and a super-linear model [Filipov et al. 17] (@SuperLinearBend) in the auto mode.
         \n5. rot_spr_fold - This function specifies the constitutive model for folding rotational spring elements, following the same format as rot_spr_bend, except that the size of input and output arrays shall be Nf old ×1, where Nf old denotes the total number of folding hinges. The default function is the enhanced linear elastic model (@EnhancedLinear) in both manual and auto modes.
-        \n6. 6. a_bar - Areas of bar elements, which could either be a scalar (for uniform area) or a Nbar ×1 array where Nbar denotes the total number of bar elements in the bar-and-hinge model. This is only used in manual mode.
+        \n6. a_bar - Areas of bar elements, which could either be a scalar (for uniform area) or a Nbar ×1 array where Nbar denotes the total number of bar elements in the bar-and-hinge model. This is only used in manual mode.
         \n7. K_b - Stiffness parameters for bending rotational spring elements, which could either be a 1×m array (for uniform property) or a Nbend ×m array, where m is the number of required stiffness parameters, which typically equals 1. This is the input Kp for rot_spr_bend.
         \n8. K_f - Stiffness parameters for folding rotational spring elements, following the same format as Kb. This is the input Kp for rot_spr_fold.
         \n9. mod_elastic - Modulus of elasticity E (or Young’s modulus) of the material of the origami structure. This parameter is used in the auto mode.
@@ -85,7 +55,7 @@ def prepare_data(node : npt.NDArray, panel : npt.NDArray, supp : npt.NDArray, lo
         \n17. initial_load_factor - Initial load factor for the numerical continuation algorithm [Liu and Paulino 17,Leon et al. 14], used in Force mode.
         \n18. max_incr - Maximum number of increments (Nicrm) for the numerical continuation algorithm, used in Force mode.
         \n19. disp_step - Number of incremental steps to achieve a Displacement load.
-        \n20. stop_criterion - A function that specifies a stopping criterion for the numerical simulation based on configurational changes of the origami structure. Use the following format: flag = stop_criterion(node,u,icrm). The function returns 1 when the stopping criterion is met; otherwise the function should return 0.
+        \n20. stop_criterion - A function that specifies a stopping criterion for the numerical simulation based on configurational changes of the origami structure. Use the following format: flag : bool = stop_criterion(node,u,icrm). The function returns True when the stopping criterion is met; otherwise the function should return False.
 
 
     Returns
@@ -175,25 +145,26 @@ def prepare_data(node : npt.NDArray, panel : npt.NDArray, supp : npt.NDArray, lo
             fd[3 * indp + 2] = load[:, 3].reshape(-1, 1)
             analy_input_opt["load"] = fd
 
+    kpb : None | npt.NDArray = None
     # find potential energy constants of bends and folds
     kptb = get_opt("K_b", 0.1)
     if type(kptb) == float and np.size(bend, 0) > 1:
-        kpb : npt.NDArray = np.asarray(npm.repmat(kptb, np.size(bend, 0), 1))
+        kpb = np.asarray(npm.repmat(kptb, np.size(bend, 0), 1))
     elif type(kptb) == np.ndarray:
-        kpb : npt.NDArray = kptb
-    else:
-        raise ValueError()
+        kpb = kptb
+    
         
-    kpf = get_opt("K_f", 0.1 * kpb[0])
-    if np.size(kpf, 0) == 1 and np.size(fold, 0) > 1:
-        kpf = np.asarray(npm.repmat(kpf, np.size(fold, 0), 1))
+    if kpb is not None:
+        kpf = get_opt("K_f", 0.1 * kpb[0])
+        if np.size(kpf, 0) == 1 and np.size(fold, 0) > 1:
+            kpf = np.asarray(npm.repmat(kpf, np.size(fold, 0), 1))
 
     if (analy_input_opt.get("model_type") == "N4B5"):
         
         truss : Truss = {
             "node" : node,
             "bars" : bars,
-            "trigl" : trigl,
+            "trigl" : trigl.astype(int),
             "b" : b,
             "l" : l.reshape((-1,1)),
             "cm" : get_opt("bar_cm", lambda Ex, incl: ogden(Ex, 1e4, incl)),
@@ -223,7 +194,7 @@ def prepare_data(node : npt.NDArray, panel : npt.NDArray, supp : npt.NDArray, lo
             truss : Truss = {
                 "node" : node,
                 "bars" : bars,
-                "trigl" : trigl,
+                "trigl" : trigl.astype(int),
                 "b" : b,
                 "l" : l.reshape((-1, 1)),
                 "fixed_dofs" : np.unique(rs),
@@ -270,7 +241,7 @@ def prepare_data(node : npt.NDArray, panel : npt.NDArray, supp : npt.NDArray, lo
             truss : Truss = {
                 "node" : node,
                 "bars" : bars,
-                "trigl" : trigl,
+                "trigl" : trigl.astype(int),
                 "b" : b,
                 "l" : l.reshape((-1, 1)),
                 "fixed_dofs" : np.unique(rs),
